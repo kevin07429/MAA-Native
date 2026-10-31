@@ -13,7 +13,8 @@ Invoke-Checked { cmake --build build-native --config Debug --target MaaCore nati
 Invoke-Checked { & build-native/bin/Debug/native_adaptive_tests.exe }
 Invoke-Checked { & build-native/bin/Debug/task_pause_tests.exe }
 Invoke-Checked { cmake --build build-native --config Release --target MaaCore MAA.Updater --parallel 4 }
-Invoke-Checked { dotnet publish src/MaaWpfGui/MaaWpfGui.csproj -c Release -r win-x64 --self-contained true -p:DisableBeauty=True -p:Platform=x64 "-p:InformationalVersion=$Version" "-p:Version=$($Version.TrimStart('v'))" "-p:FileVersion=$fileVersion" "-p:AssemblyVersion=$fileVersion" -p:PostBuildEvent= -p:OutputPath=build-native/gui-bin/ -o build-native/gui-publish }
+$buildRoot=(Resolve-Path build-native).Path
+Invoke-Checked { dotnet publish src/MaaWpfGui/MaaWpfGui.csproj -c Release -r win-x64 --self-contained true -p:DisableBeauty=True -p:Platform=x64 "-p:InformationalVersion=$Version" "-p:Version=$($Version.TrimStart('v'))" "-p:FileVersion=$fileVersion" "-p:AssemblyVersion=$fileVersion" -p:PostBuildEvent= "-p:SolutionDir=$buildRoot/" "-p:OutputPath=$buildRoot/gui-bin/" -o build-native/gui-publish }
 $headers=@{'User-Agent'='MAA-Native-release'}
 $framework=Invoke-RestMethod -Uri 'https://api.github.com/repos/MaaXYZ/MaaFramework/releases/tags/v5.13.0' -Headers $headers
 $unitAsset=$framework.assets | Where-Object { $_.name -like '*win-x86_64*.zip' } | Select-Object -First 1
