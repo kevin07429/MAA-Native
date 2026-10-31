@@ -10,6 +10,7 @@
 bool asst::RoguelikeEncounterOptionAnalyzer::analyze()
 {
     LogTraceFunction;
+    m_result.clear();
 
     // ————————————————————————————————————————————————————————————————
     // validate m_theme
@@ -74,7 +75,9 @@ bool asst::RoguelikeEncounterOptionAnalyzer::analyze()
         }
 
         Rect templ_rect = templ_task_ptr->specific_rect;
+        templ_rect.x = rect.x;
         templ_rect.y = rect.y;
+        templ_rect.height = rect.height;
         option.templ = make_roi(m_image, templ_rect);
         option.merged_y = rect.y;
 
@@ -86,6 +89,12 @@ bool asst::RoguelikeEncounterOptionAnalyzer::analyze()
         else {
             Log.error(__FUNCTION__, "Failed to recognise option text");
             save_img(option.templ, "option template");
+        }
+
+        if (option.enabled && (option.text.empty() || option.text == "<" || option.text == ">")) {
+            LogError << __FUNCTION__ << "Enabled option text is invalid; reject the option list";
+            save_img(option.templ, "invalid option text");
+            return false;
         }
 
         Log.info(
@@ -165,6 +174,12 @@ std::optional<int> asst::RoguelikeEncounterOptionAnalyzer::merge_image(const cv:
     // ————————————————————————————————————————————————————————————————
     Rect overlap_rect_in_m_image =
         Task.get<MatchTaskInfo>(m_theme + "@RoguelikeEncounterOptionAnalyzer-Option")->specific_rect;
+    const auto overlap_options = analyze_options(m_image);
+    if (!overlap_options || overlap_options->empty()) {
+        return std::nullopt;
+    }
+    overlap_rect_in_m_image.x = overlap_options->back().rect.x;
+    overlap_rect_in_m_image.height = overlap_options->back().rect.height;
     overlap_rect_in_m_image.y = m_last_option_y;
     cv::Mat overlap_option_templ = make_roi(m_image, overlap_rect_in_m_image);
 
@@ -258,15 +273,16 @@ asst::Matcher::ResultOpt asst::RoguelikeEncounterOptionAnalyzer::match_option(
     Matcher option_matcher(image);
     option_matcher.set_task_info(option_match_task);
     option_matcher.set_templ(option_templ);
-    option_matcher.set_roi(option_roi(theme, image.rows));
+    option_matcher.set_roi(option_roi(theme, image.rows, image.cols));
 
     return option_matcher.analyze();
 }
 
-asst::Rect asst::RoguelikeEncounterOptionAnalyzer::option_roi(const std::string& theme, int image_rows)
+asst::Rect asst::RoguelikeEncounterOptionAnalyzer::option_roi(const std::string& theme, int image_rows, int image_cols)
 {
     Rect roi = Task.get<MatchTaskInfo>(theme + "@RoguelikeEncounterOptionAnalyzer-Option")->roi;
     roi.height = image_rows - (WindowHeightDefault - roi.height);
+    roi.width += image_cols - WindowWidthDefault;
     return roi;
 }
 
@@ -282,6 +298,7 @@ asst::MultiMatcher::ResultsVecOpt asst::RoguelikeEncounterOptionAnalyzer::analyz
 
     Rect option_analyze_roi = option_analyze_task->roi;
     option_analyze_roi.height = image.rows - (WindowHeightDefault - option_analyze_roi.height);
+    option_analyze_roi.width += image.cols - WindowWidthDefault;
     option_analyzer.set_roi(option_analyze_roi);
 
     if (!option_analyzer.analyze()) {

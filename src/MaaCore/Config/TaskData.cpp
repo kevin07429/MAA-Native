@@ -531,6 +531,13 @@ asst::TaskPtr asst::TaskData::generate_task_info(const std::string& name)
     ASST_TASKDATA_GET_VALUE_OR("subErrorIgnored", sub_error_ignored);
     ASST_TASKDATA_GET_VALUE_OR("rectMove", rect_move);
     ASST_TASKDATA_GET_VALUE_OR("specificRect", specific_rect);
+    ASST_TASKDATA_GET_VALUE_OR("screenAnchor", screen_anchor);
+    if (task->screen_anchor != "auto" && task->screen_anchor != "left" &&
+        task->screen_anchor != "center" && task->screen_anchor != "right" &&
+        task->screen_anchor != "absolute") {
+        Log.error("Invalid screenAnchor", name, task->screen_anchor);
+        return nullptr;
+    }
     ASST_TASKDATA_GET_VALUE_OR("highResolutionSwipeFix", high_resolution_swipe_fix);
     ASST_TASKDATA_GET_VALUE_OR("specialParams", special_params);
     ASST_TASKDATA_GET_VALUE_OR("inputText", input_text);
@@ -1146,8 +1153,8 @@ bool asst::TaskData::syntax_check(const std::string& task_name, const json::valu
     // clang-format on
 
     static const std::unordered_map<ProcessTaskAction, std::unordered_set<std::string>> allowed_key_under_action = {
-        { ProcessTaskAction::ClickRect, { "specificRect" } },
-        { ProcessTaskAction::Swipe, { "specificRect", "rectMove" } },
+        { ProcessTaskAction::ClickRect, { "specificRect", "screenAnchor" } },
+        { ProcessTaskAction::Swipe, { "specificRect", "rectMove", "screenAnchor" } },
         { ProcessTaskAction::Input, { "inputText" } },
     };
 

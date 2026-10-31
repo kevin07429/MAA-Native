@@ -3,6 +3,8 @@
 #include "MaaUtils/NoWarningCV.hpp"
 #include <ranges>
 
+#include "Common/AdaptiveLayout.h"
+#include "Config/GeneralConfig.h"
 #include "Config/Miscellaneous/InfrastConfig.h"
 #include "Config/TaskData.h"
 #include "InfrastSmileyImageAnalyzer.h"
@@ -79,8 +81,14 @@ void asst::InfrastOperImageAnalyzer::oper_detect()
 {
     LogTraceFunction;
 
-    const Rect upper_roi = Task.get("InfrastSkillsUpper")->roi;
-    const Rect lower_roi = Task.get("InfrastSkillsLower")->roi;
+    const auto task_roi = [&](const std::string& name) {
+        const auto roi = Task.get(name)->roi;
+        return Config.get_options().native_resolution
+                   ? correct_rect(adaptive::search_rect(roi, m_image.cols, m_image.rows), m_image)
+                   : roi;
+    };
+    const Rect upper_roi = task_roi("InfrastSkillsUpper");
+    const Rect lower_roi = task_roi("InfrastSkillsLower");
     const std::vector<Rect> all_roi = { upper_roi, lower_roi };
 
     const Rect skill_rect_move = Task.get("InfrastSkills")->rect_move;

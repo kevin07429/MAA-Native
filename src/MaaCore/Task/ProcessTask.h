@@ -55,6 +55,7 @@ protected:
         Runout,      // 执行次数达到上限，对应 exceeded_next
         Interrupted,
         InternalError,
+        Recheck,
     };
 
     struct HitDetail
@@ -63,6 +64,7 @@ protected:
         Rect rect;
         std::shared_ptr<AnalyzerResult> reco_detail = nullptr;
         TaskConstPtr task_ptr = nullptr;
+        uint64_t pause_epoch = 0;
     };
 
     virtual bool _run() override;

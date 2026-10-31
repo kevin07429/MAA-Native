@@ -20,6 +20,7 @@ bool asst::GeneralConfig::parse(const json::value& json)
 
     {
         const json::value& options_json = json.at("options");
+        m_options.native_resolution = options_json.get("nativeResolution", false);
         m_options.task_delay = options_json.at("taskDelay").as_integer();
         m_options.sss_fight_screencap_interval = options_json.at("SSSFightScreencapInterval").as_integer();
         m_options.roguelike_fight_screencap_interval = options_json.at("RoguelikeFightScreencapInterval").as_integer();
@@ -67,6 +68,7 @@ bool asst::GeneralConfig::parse(const json::value& json)
         const AdbCfg& base_cfg = base_name.empty() ? AdbCfg() : m_adb_cfg.at(base_name);
 
         AdbCfg& adb = m_adb_cfg[cfg_json.at("configName").as_string()];
+        adb.extras = cfg_json.get("extras", base_cfg.extras);
         adb.devices = cfg_json.get("devices", base_cfg.devices);
         adb.address_regex = cfg_json.get("addressRegex", base_cfg.address_regex);
         adb.connect = cfg_json.get("connect", base_cfg.connect);

@@ -1,4 +1,4 @@
-// <copyright file="App.xaml.cs" company="MaaAssistantArknights">
+﻿// <copyright file="App.xaml.cs" company="MaaAssistantArknights">
 // Part of the MaaWpfGui project, maintained by the MaaAssistantArknights team (Maa Team)
 // Copyright (C) 2021-2026 MaaAssistantArknights Contributors
 //
@@ -14,6 +14,7 @@
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Documents;
+using MaaWpfGui.Services;
 using MaaWpfGui.WineCompat;
 using MaaWpfGui.WineCompat.FontConfig;
 using Serilog;
@@ -38,6 +39,13 @@ public partial class App : Application
                 UseShellExecute = true,
             });
         }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        DebugControlService.Stop();
+        NativeCaptureService.StopAsync().GetAwaiter().GetResult();
+        base.OnExit(e);
     }
 
     protected override void OnStartup(StartupEventArgs e)

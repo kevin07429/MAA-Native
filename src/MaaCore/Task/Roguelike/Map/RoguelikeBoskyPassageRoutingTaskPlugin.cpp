@@ -1,6 +1,7 @@
 #include "RoguelikeBoskyPassageRoutingTaskPlugin.h"
 
 #include "Common/AsstTypes.h"
+#include "Config/GeneralConfig.h"
 #include "Config/TaskData.h"
 #include "Controller/Controller.h"
 #include "MaaUtils/ImageIo.h"
@@ -109,6 +110,19 @@ void asst::RoguelikeBoskyPassageRoutingTaskPlugin::bosky_update_map()
     if (image.empty()) {
         Log.error(__FUNCTION__, "| Failed to get image from controller");
         return;
+    }
+
+    m_bosky_config = RoguelikeBoskyPassageMap::BoskyPassageMapConfig(
+        Task.get("JieGarden@RoguelikeRoutingConfig_BoskyPassage")->special_params);
+    if (Config.get_options().native_resolution) {
+        const int dx = (image.cols - WindowWidthDefault) / 2;
+        const int dy = (image.rows - WindowHeightDefault) / 2;
+        m_bosky_config.origin_x += dx;
+        m_bosky_config.middle_x += dx;
+        m_bosky_config.last_x += dx;
+        m_bosky_config.origin_y += dy;
+        m_bosky_config.middle_y += dy;
+        m_bosky_config.last_y += dy;
     }
 
     MultiMatcher node_analyzer(image);

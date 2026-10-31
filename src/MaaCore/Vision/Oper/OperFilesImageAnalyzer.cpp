@@ -110,7 +110,8 @@ std::optional<int> asst::OperFilesImageAnalyzer::elite_level()
         return std::nullopt;
     }
 
-    BestMatcher analyzer(m_image, task_ptr->roi);
+    BestMatcher analyzer(m_image);
+    analyzer.set_task_roi(task_ptr->roi);
     analyzer.set_threshold(std::vector<double>(kMaxEliteStage + 1, task_ptr->templ_thresholds.front()));
     for (int elite = 0; elite <= kMaxEliteStage; ++elite) {
         analyzer.append_templ(std::string(kEliteTemplPrefix) + std::to_string(elite) + ".png");

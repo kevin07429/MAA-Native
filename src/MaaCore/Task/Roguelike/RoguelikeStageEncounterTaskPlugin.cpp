@@ -354,7 +354,7 @@ int asst::RoguelikeStageEncounterTaskPlugin::hp(const cv::Mat& image) const
     merged_map.insert(merged_map.end(), task->replace_map.begin(), task->replace_map.end());
     merged_map.emplace_back("(.*)/.*", "$1");
 
-    auto roi_image = make_roi(image, task->roi).clone();
+    auto roi_image = make_roi(image, adapt_resource_rect(task->roi, task->screen_anchor)).clone();
     cv::Mat r_channel;
     cv::extractChannel(roi_image, r_channel, 2);
     cv::Mat mask;
@@ -716,8 +716,15 @@ bool asst::RoguelikeStageEncounterTaskPlugin::click_analyzed_option(size_t index
 
     LogInfo << __FUNCTION__ << "Clicking option" << index + 1 << m_option_list[index].text;
     if (m_config->get_theme() == RoguelikeTheme::JieGarden) {
+        const Rect& header_rect = m_option_rect_in_view[index];
+        if (header_rect.x == UNDEFINED) {
+            LogError << __FUNCTION__ << "JieGarden option header is unavailable";
+            return false;
+        }
         Rect click_rect = Task.get("JieGarden@RoguelikeEncounter-ClickOption")->specific_rect;
-        click_rect.y = m_option_y_in_view[index];
+        const auto option_task = Task.get("JieGarden@RoguelikeEncounterOptionAnalyzer-Option");
+        click_rect.x += header_rect.x - option_task->specific_rect.x;
+        click_rect.y = header_rect.y;
         return ctrler()->click(click_rect);
     }
 
@@ -928,13 +935,13 @@ std::optional<std::string> asst::RoguelikeStageEncounterTaskPlugin::next_event(c
     const auto& task = Task.get("Roguelike@StageEncounterJudgeClick");
     for (int i = 0; i < 3; ++i) {
         for (int j = 0; j < 2; ++j) {
-            ctrler()->click(task->specific_rect);
+            ctrler()->click(adapt_resource_rect(task->specific_rect, task->screen_anchor));
             sleep(500);
         }
         if (hp(ctrler()->get_image()) >= 0) {
             Log.debug("HP restored, going to next_event:", event.next_event);
             // 多点一次，确保选项恢复
-            ctrler()->click(task->specific_rect);
+            ctrler()->click(adapt_resource_rect(task->specific_rect, task->screen_anchor));
             sleep(500);
             return event.next_event;
         }
@@ -965,7 +972,9 @@ std::optional<std::string>
         if (map.analyze() || clicks == MaxAdvanceClicks) {
             return std::nullopt;
         }
-        if (need_exit() || !ctrler()->click(click_task->specific_rect) || !sleep(500)) {
+        if (need_exit() ||
+            !ctrler()->click(adapt_resource_rect(click_task->specific_rect, click_task->screen_anchor)) ||
+            !sleep(500)) {
             return std::nullopt;
         }
     }

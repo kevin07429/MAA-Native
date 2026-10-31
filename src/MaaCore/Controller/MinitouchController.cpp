@@ -5,6 +5,7 @@
 #include "Common/AsstTypes.h"
 #include "Config/GeneralConfig.h"
 #include "SwipeHelper.hpp"
+#include "TouchOrientation.h"
 #include "Utils/Logger.hpp"
 #include "Utils/StringMisc.hpp"
 
@@ -336,11 +337,18 @@ void asst::MinitouchController::on_display_rotated()
 void asst::MinitouchController::read_orientation()
 {
     std::string orientation_str = call_command(m_conn_ctx.replace_cmd(m_conn_ctx.adb_cfg.orientation)).value_or("");
-    if (!orientation_str.empty()) {
-        char first = orientation_str.front();
-        if (first == '0' || first == '1' || first == '2' || first == '3') {
-            m_minitouch_props.orientation = static_cast<int>(first - '0');
+    auto orientation = parse_touch_orientation(orientation_str);
+    if (!orientation) {
+        const auto input = call_command(m_conn_ctx.replace_cmd("[Adb] -s [AdbSerial] shell dumpsys input"));
+        if (input) {
+            orientation = parse_touch_orientation(*input);
         }
+    }
+    if (orientation) {
+        m_minitouch_props.orientation = *orientation;
+    }
+    else {
+        LogWarn << "Could not determine touchscreen orientation";
     }
 }
 

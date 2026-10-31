@@ -529,7 +529,7 @@ bool
             succeeded = ProcessTask(*this, { std::string(task_name) }).run();
         }
         else {
-            const Rect& start = task->specific_rect;
+            const Rect start = adapt_resource_rect(task->specific_rect, task->screen_anchor);
             const Rect end { start.x, start.y + *distance, start.width, start.height };
             const auto& params = task->special_params;
             succeeded = ctrler()->swipe(

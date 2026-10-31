@@ -334,6 +334,30 @@ public static class ResourceUpdater
         {
             SettingsViewModel.VersionUpdateSettings.IsCheckingForUpdates = true;
 
+            if (SettingsViewModel.VersionUpdateSettings.UpdateSource == UpdateSource.GitHub)
+            {
+                const string versionUrl = "https://raw.githubusercontent.com/MaaAssistantArknights/MaaResource/main/resource/version.json";
+                string? remoteText = await Instances.HttpService.GetStringAsync(new Uri(versionUrl));
+                if (remoteText is null)
+                {
+                    return CheckUpdateRetT.NetworkError;
+                }
+                string localPath = Path.Combine(PathsHelper.ResourceDir, "version.json");
+                string? localVersion = File.Exists(localPath)
+                    ? JObject.Parse(await File.ReadAllTextAsync(localPath))["last_updated"]?.Value<string>()
+                    : null;
+                string? remoteVersion = JObject.Parse(remoteText)["last_updated"]?.Value<string>();
+                if (!DateTime.TryParse(remoteVersion, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var remoteTime))
+                {
+                    return CheckUpdateRetT.FailedToGetInfo;
+                }
+                if (DateTime.TryParse(localVersion, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var localTime) && remoteTime <= localTime)
+                {
+                    return CheckUpdateRetT.AlreadyLatest;
+                }
+                return await UpdateFromGithubAsync() ? CheckUpdateRetT.OnlyGameResourceUpdated : CheckUpdateRetT.UpdatePackageDownloadFailed;
+            }
+
             var (ret, uri, releaseNote) = await CheckFromMirrorChyanAsync();
             if (ret == CheckUpdateRetT.NoMirrorChyanCdk)
             {

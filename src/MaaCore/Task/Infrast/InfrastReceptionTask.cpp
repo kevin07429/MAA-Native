@@ -261,9 +261,12 @@ bool asst::InfrastReceptionTask::proc_clue_vacancy()
                 int available = 0;
                 if (utils::chars_to_number(ocr_res->text, available)) {
                     Log.info("vacancy_cnt:", vacancy_cnt, ", available:", available);
-                    if (available == vacancy_cnt) {
-                        Rect click_rect = confirm_task->roi.move(confirm_task->rect_move);
-                        ctrler()->click(click_rect);
+                    if (available > 0 && available <= vacancy_cnt) {
+                        Rect click_rect = adapt_resource_rect(confirm_task->roi, confirm_task->screen_anchor)
+                                              .move(confirm_task->rect_move);
+                        if (!ctrler()->click(click_rect) || !sleep(500)) {
+                            return false;
+                        }
                     }
                 }
             }
@@ -309,6 +312,12 @@ bool asst::InfrastReceptionTask::proc_clue_vacancy()
 
 bool asst::InfrastReceptionTask::unlock_clue_exchange()
 {
+    InfrastClueVacancyImageAnalyzer vacancy_analyzer(ctrler()->get_image());
+    vacancy_analyzer.set_to_be_analyzed({ "No1", "No2", "No3", "No4", "No5", "No6", "No7" });
+    if (vacancy_analyzer.analyze()) {
+        LogInfo << __FUNCTION__ << "clue board is incomplete, skip exchange unlock";
+        return false;
+    }
     ProcessTask task(*this, { "UnlockClues" });
     task.set_retry_times(2);
     return task.run();
@@ -343,7 +352,7 @@ bool asst::InfrastReceptionTask::shift()
     switch (raw_task_ptr->algorithm) {
     case AlgorithmType::JustReturn:
         if (raw_task_ptr->action == ProcessTaskAction::ClickRect) {
-            ctrler()->click(raw_task_ptr->specific_rect);
+            ctrler()->click(adapt_resource_rect(raw_task_ptr->specific_rect, raw_task_ptr->screen_anchor));
         }
         break;
     case AlgorithmType::MatchTemplate: {

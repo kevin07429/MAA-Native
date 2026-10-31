@@ -5,6 +5,7 @@
 
 #include "MaaUtils/NoWarningCV.hpp"
 
+#include "Config/GeneralConfig.h"
 #include "Config/TaskData.h"
 #include "Config/TemplResource.h"
 #include "Utils/Logger.hpp"
@@ -17,7 +18,10 @@ MultiMatcher::ResultsVecOpt MultiMatcher::analyze() const
     if (m_roi.empty()) {
         return std::nullopt;
     }
-    auto match_results = Matcher::preproc_and_match(make_roi(m_image, m_roi), m_params);
+    const bool native =
+        Config.get_options().native_resolution &&
+        (m_image.cols != WindowWidthDefault || m_image.rows != WindowHeightDefault || !m_params.native_scales.empty());
+    auto match_results = Matcher::preproc_and_match(make_roi(m_image, m_roi), m_params, native, false);
 
     std::vector<Result> results;
     for (size_t index = 0; index < match_results.size(); ++index) {

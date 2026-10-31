@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!-- Project -->
   <PropertyGroup>
@@ -96,6 +96,7 @@
   <!-- Resource -->
   <ItemGroup>
     <AdditionalFiles Include="stylecop.json" />
+    <EmbeddedResource Include="..\..\tools\wireless-native\maa-native-cap.jar" LogicalName="NativeCapture.MaaNativeCap.jar" />
     <Resource Include="newlogo.ico" />
     <!--  Internal 为内部资源（喜报等，嵌入）；Wallpapers 为用户可选壁纸，复制到输出目录供下拉列表读取  -->
     <Resource Include="Res\Backgrounds\Internal\**\*" />

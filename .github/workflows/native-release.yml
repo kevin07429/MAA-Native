@@ -1,0 +1,73 @@
+name: Publish MAA Native
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (v6.20.1-native.4)'
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: native-release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.repository == 'kevin07429/MAA-Native'
+    runs-on: windows-2025-vs2026
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: false
+      - name: Initialize core dependencies
+        shell: bash
+        run: bash .github/scripts/sync-optional-submodules.sh --init --depth 1 src/MaaUtils 3rdparty/EmulatorExtras
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build and verify Windows x64 packages
+        shell: pwsh
+        env:
+          NATIVE_VERSION: ${{ inputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/build-native.ps1 -Version $env:NATIVE_VERSION
+      - uses: actions/upload-artifact@v7
+        with:
+          name: native-release-${{ inputs.version }}
+          path: |
+            build-native/assets/*.zip
+            build-native/assets/*.sha256
+            build-native/assets/native-release.json
+      - name: Publish assets after the build succeeds
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NATIVE_VERSION: ${{ inputs.version }}
+        run: |
+          $notes = @'
+          Windows x64 native phone edition. App updates use this repository; game resources remain on official MaaResource.
+          Download MAA-v...-win-x64.zip for a new installation. Program update ZIPs are consumed by the in-app updater and preserve configuration, data and resources.
+          SHA256 checksums and the corresponding source tag are included. This is an unofficial MAA build under AGPL-3.0.
+          '@
+          $notes | Set-Content build-native/release-notes.md -Encoding utf8
+          $existing = gh release view $env:NATIVE_VERSION --repo $env:GITHUB_REPOSITORY --json isDraft --jq .isDraft 2>$null
+          if ($LASTEXITCODE -eq 0 -and $existing -eq 'false') {
+            Write-Output 'This version is already published. Build verification completed; published assets are unchanged.'
+            exit 0
+          }
+          gh release create $env:NATIVE_VERSION --target $env:GITHUB_SHA --repo $env:GITHUB_REPOSITORY --title "MAA Native $env:NATIVE_VERSION" --notes-file build-native/release-notes.md --draft
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create draft release; choose a new version or finish the existing draft' }
+          $files = Get-ChildItem build-native/assets -File | Where-Object { $_.Extension -in '.zip','.sha256','.json' }
+          gh release upload $env:NATIVE_VERSION @($files.FullName) --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { throw 'Release asset upload failed; release remains a draft' }
+          gh release edit $env:NATIVE_VERSION --repo $env:GITHUB_REPOSITORY --draft=false --prerelease=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Could not publish verified release' }

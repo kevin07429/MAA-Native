@@ -3,6 +3,8 @@
 #include <future>
 #include <thread>
 
+#include "Common/AdaptiveBattleLayout.h"
+#include "Common/AdaptiveLayout.h"
 #include "Config/GeneralConfig.h"
 #include "Config/Miscellaneous/AvatarCacheManager.h"
 #include "Config/Miscellaneous/BattleDataConfig.h"
@@ -70,6 +72,7 @@ bool asst::BattleHelper::calc_tiles_info(const std::string& stage_name, double s
 
     m_map_data = TilePack::find_level(stage_name).value_or(Map::Level {});
     auto calc_result = TilePack::calc(stage_name, shift_x, shift_y);
+    adapt_tile_layout(calc_result, shift_x, shift_y);
     m_normal_tile_info = std::move(calc_result.normal_tile_info);
     m_side_tile_info = std::move(calc_result.side_tile_info);
     m_retreat_button_pos = calc_result.retreat_button;
@@ -77,6 +80,30 @@ bool asst::BattleHelper::calc_tiles_info(const std::string& stage_name, double s
     m_has_multi_stages = calc_result.has_multi_stages;
 
     return true;
+}
+
+void asst::BattleHelper::adapt_tile_layout(TilePack::result_type& layout, double shift_x, double shift_y) const
+{
+    if (!Config.get_options().native_resolution) {
+        return;
+    }
+    const auto [width, height] = m_inst_helper.ctrler()->get_scale_size();
+    const cv::Vec3d camera_shift { -shift_x, shift_y, 0 };
+    const auto project = [&](const cv::Vec3d& world, bool side, const cv::Vec3d& offset = cv::Vec3d {}) {
+        const auto point = adaptive::project_battle(m_map_data, world, side, width, height, offset);
+        return Point(point.x, point.y);
+    };
+    for (auto& [_, tile] : layout.normal_tile_info) {
+        tile.pos = project(Map::TileCalc2::get_tile_world_pos(m_map_data, tile.loc.y, tile.loc.x), false, camera_shift);
+    }
+    for (auto& [_, tile] : layout.side_tile_info) {
+        tile.pos = project(Map::TileCalc2::get_tile_world_pos(m_map_data, tile.loc.y, tile.loc.x), true, camera_shift);
+    }
+    const double center = layout.has_multi_stages ? m_map_data.view[0].x : 0;
+    layout.retreat_button =
+        project({ -Map::TileCalc2::rel_pos_x + center, Map::TileCalc2::rel_pos_y, Map::TileCalc2::rel_pos_z }, true);
+    layout.skill_button =
+        project({ Map::TileCalc2::rel_pos_x + center, -Map::TileCalc2::rel_pos_y, Map::TileCalc2::rel_pos_z }, true);
 }
 
 bool asst::BattleHelper::pause()
@@ -358,7 +385,9 @@ cv::Mat asst::BattleHelper::get_top_view(const cv::Mat& cam_img, bool side, bool
     std::vector<cv::Point2f> screen_points;
     for (const auto& point : world_points) {
         cv::Vec3d temp { point.x + (has_multi_stages ? m_map_data.view[0].x : 0), -point.y, Map::TileCalc2::rel_pos_z };
-        auto screen_pt = Map::TileCalc2::world_to_screen(m_map_data, temp, true);
+        auto screen_pt = Config.get_options().native_resolution
+                             ? adaptive::project_battle(m_map_data, temp, true, cam_img.cols, cam_img.rows)
+                             : Map::TileCalc2::world_to_screen(m_map_data, temp, true);
         screen_points.push_back(screen_pt);
     }
 
@@ -616,7 +645,7 @@ bool asst::BattleHelper::is_skill_ready(const Point& loc, const cv::Mat& reusabl
         return false;
     }
     const Point& battlefield_point = target_iter->second.pos;
-    static const Rect screen_rect = { 0, 0, WindowWidthDefault, WindowHeightDefault };
+    const Rect screen_rect = { 0, 0, image.cols, image.rows };
     if (!screen_rect.include(battlefield_point)) {
         return false;
     }

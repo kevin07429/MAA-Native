@@ -3,6 +3,8 @@
 #include "MaaUtils/NoWarningCV.hpp"
 
 #include "Assistant.h"
+#include "Common/AdaptiveLayout.h"
+#include "Config/GeneralConfig.h"
 #include "InstHelper.h"
 #include "MaaUtils/ImageIo.h"
 #include "MaaUtils/Time.hpp"
@@ -35,12 +37,29 @@ void VisionHelper::set_image(const cv::Mat& image)
     m_image_draw = image.clone();
 #endif
 
-    set_roi(m_roi);
+    if (m_task_roi) {
+        set_task_roi(*m_task_roi, m_fixed_task_roi);
+    }
+    else {
+        set_roi(m_roi);
+    }
 }
 
 void VisionHelper::set_roi(const Rect& roi)
 {
+    m_task_roi.reset();
     m_roi = correct_rect(roi, m_image);
+}
+
+void VisionHelper::set_task_roi(const Rect& roi, bool fixed)
+{
+    m_task_roi = roi;
+    m_fixed_task_roi = fixed;
+    m_roi = correct_rect(
+        Config.get_options().native_resolution ? (fixed ? adaptive::fixed_rect(roi, m_image.cols, m_image.rows)
+                                                        : adaptive::search_rect(roi, m_image.cols, m_image.rows))
+                                               : roi,
+        m_image);
 }
 
 void VisionHelper::set_log_tracing(bool enable)

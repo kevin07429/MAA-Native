@@ -1,4 +1,4 @@
-// <copyright file="VersionUpdateDialogViewModel.cs" company="MaaAssistantArknights">
+﻿// <copyright file="VersionUpdateDialogViewModel.cs" company="MaaAssistantArknights">
 // Part of the MaaWpfGui project, maintained by the MaaAssistantArknights team (Maa Team)
 // Copyright (C) 2021-2026 MaaAssistantArknights Contributors
 //
@@ -556,45 +556,10 @@ public class VersionUpdateDialogViewModel : Screen
     /// <returns>Task</returns>
     public async Task ShowUpdateOrDownload()
     {
-        if (IsFirstBootAfterUpdate)
+        await ResourceUpdater.ResourceUpdateAndReloadAsync();
+        if (SettingsViewModel.VersionUpdateSettings.StartupUpdateCheck)
         {
-            IsFirstBootAfterUpdate = false;
-            if (!DoNotShowUpdate)
-            {
-                // 首启展示时 UpdateInfo 不经 setter（构造期从本地缓存读取），此处兜底触发头像下载
-                _ = DownloadMissingContributorAvatarsAsync(_updateInfo);
-                Instances.WindowManager.ShowWindow(this);
-            }
-        }
-        else
-        {
-            if (!SettingsViewModel.VersionUpdateSettings.StartupUpdateCheck)
-            {
-                return;
-            }
-
-            if (!IsDebugVersion())
-            {
-                if (SettingsViewModel.VersionUpdateSettings.UpdateSource == UpdateSource.MirrorChyan && string.IsNullOrEmpty(SettingsViewModel.VersionUpdateSettings.MirrorChyanCdk))
-                {
-                    _ = Task.Run(() =>
-                        MessageBoxHelper.Show(
-                            LocalizationHelper.GetString("MirrorChyanSelectedButNoCdk"),
-                            LocalizationHelper.GetString("Warning"),
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Warning,
-                            ok: LocalizationHelper.GetString("Ok")));
-                }
-
-                await VersionUpdateAndAskToRestartAsync();
-                await ResourceUpdater.ResourceUpdateAndReloadAsync();
-            }
-            else
-            {
-                // await ResourceUpdater.CheckAndDownloadResourceUpdate();
-                // 跑个空任务避免 async warning
-                await Task.Run(() => { });
-            }
+            await VersionUpdateAndAskToRestartAsync();
         }
     }
 
@@ -640,54 +605,9 @@ public class VersionUpdateDialogViewModel : Screen
     /// 检查更新，并下载更新包。
     /// </summary>
     /// <returns>操作成功返回 <see langword="true"/>，反之则返回 <see langword="false"/>。</returns>
-    public async Task<CheckUpdateRetT> CheckAndDownloadVersionUpdate()
+    public Task<CheckUpdateRetT> CheckAndDownloadVersionUpdate()
     {
-        try
-        {
-            SettingsViewModel.VersionUpdateSettings.IsCheckingForUpdates = true;
-
-            if (FakeUpdateHelper.IsEnabled)
-            {
-                return await HandleFakeUpdate();
-            }
-
-            // 资源损坏/上次更新失败期间只允许完整包更新，OTA 只含差异文件无法修复残留的不一致文件。
-            // 普通更新检查入口（设置页手动检查、启动/定时自动检查）统一重定向到完整包修复流程，
-            // 不做版本新旧判断——已是最新版本时也重装同版本完整包以修复安装
-            // 此分支有意不检查 ｢自动下载更新包｣ 偏好，修复优先于下载偏好，仅以流程内的完整包覆盖确认弹窗兜底
-            if (ShouldForceFullPackageUpdate)
-            {
-                _logger.Information("Installation is broken (resource broken or delegated update failure), forcing full package update");
-
-                // 重启提示交由调用方按 OK 返回值统一弹出，此处不再重复询问；
-                // AlreadyRunning 映射为 NoNeedToUpdate 静默退出以避免双弹，重启询问由执行中的链路在成功收尾时弹出；
-                // 失败一律映射为 UpdatePackageDownloadFailed，外层 toast 按下载失败提示，不区分实际失败原因
-                var repairResult = await RunIntegrityRepairAsync(askRestartOnSuccess: false);
-                return repairResult switch {
-                    IntegrityRepairResult.Succeeded => CheckUpdateRetT.OK,
-                    IntegrityRepairResult.AlreadyRunning => CheckUpdateRetT.NoNeedToUpdate,
-                    IntegrityRepairResult.Canceled => CheckUpdateRetT.NoNeedToUpdate,
-                    _ => CheckUpdateRetT.UpdatePackageDownloadFailed,
-                };
-            }
-
-            var (checkRet, source) = await CheckUpdate();
-
-            if (checkRet != CheckUpdateRetT.OK)
-            {
-                return checkRet;
-            }
-
-            return source switch {
-                AppUpdateSource.MaaApi => await HandleUpdateFromMaaApi(),
-                AppUpdateSource.MirrorChyan => await HandleUpdateFromMirrorChyan(),
-                _ => CheckUpdateRetT.UnknownError,
-            };
-        }
-        finally
-        {
-            SettingsViewModel.VersionUpdateSettings.IsCheckingForUpdates = false;
-        }
+        return NativeUpdateService.CheckAndDownloadAsync();
     }
 
     private async Task<CheckUpdateRetT> HandleFakeUpdate()
@@ -1105,6 +1025,20 @@ public class VersionUpdateDialogViewModel : Screen
     private async Task<IntegrityRepairResult> RunIntegrityRepairCoreAsync(bool askRestartOnSuccess)
     {
         _logger.Information("Starting integrity repair");
+
+        if (VersionUpdateSettingsUserControlModel.UiVersion.Contains("-native.", StringComparison.Ordinal))
+        {
+            var result = await NativeUpdateService.CheckAndDownloadAsync(allowSameVersion: true);
+            if (result != CheckUpdateRetT.OK)
+            {
+                return IntegrityRepairResult.Failed;
+            }
+            if (askRestartOnSuccess)
+            {
+                await AskToRestartForImportedPackage();
+            }
+            return IntegrityRepairResult.Succeeded;
+        }
 
         // 解释性提示放在流程内部而非重定向入口输出，命中防重入静默返回的调用不会进入流程内部，
         // 重定向入口的进度区因此保持执行中链路的输出；下载日志区为单条目替换，两条提示合并为一次输出避免互相覆盖

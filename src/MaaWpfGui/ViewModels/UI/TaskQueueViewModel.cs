@@ -1,4 +1,4 @@
-// <copyright file="TaskQueueViewModel.cs" company="MaaAssistantArknights">
+﻿// <copyright file="TaskQueueViewModel.cs" company="MaaAssistantArknights">
 // Part of the MaaWpfGui project, maintained by the MaaAssistantArknights team (Maa Team)
 // Copyright (C) 2021-2026 MaaAssistantArknights Contributors
 //
@@ -718,6 +718,13 @@ public class TaskQueueViewModel : Screen
     /// </summary>
     public TaskQueueViewModel()
     {
+        var pauseMonitor = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        pauseMonitor.Tick += (_, _) => {
+            int state = Run.Inited ? Instances.AsstProxy.TaskPauseState() : 0;
+            TaskPaused = state != 0;
+            TaskPausePending = state == 1;
+        };
+        pauseMonitor.Start();
         _runningState = RunningState.Instance;
         _runningState.StateChanged += (_, e) => {
             // 回到空闲的变化沿时清零主任务进度分母并隐藏任务栏进度
@@ -1049,7 +1056,6 @@ public class TaskQueueViewModel : Screen
         _ = Task.Run(async () => {
             _logger.Information("waiting for update check: {DelayTime}", delayTime);
             await Task.Delay(delayTime);
-            await Instances.VersionUpdateDialogViewModel.VersionUpdateAndAskToRestartAsync();
             await ResourceUpdater.ResourceUpdateAndReloadAsync();
 
             _isCheckingForUpdates = false;
@@ -2700,6 +2706,26 @@ public class TaskQueueViewModel : Screen
         {
             AchievementTrackerHelper.Instance.Unlock(AchievementIds.TaskStartCancel);
         }
+    }
+
+    public bool TaskPaused { get => field; private set => SetAndNotify(ref field, value); }
+
+    public bool TaskPausePending { get => field; private set => SetAndNotify(ref field, value); }
+
+    public void ToggleTaskPause()
+    {
+        if (Instances.AsstProxy.TaskPauseState() == 0)
+        {
+            Instances.AsstProxy.PauseTask();
+        }
+        else
+        {
+            Instances.AsstProxy.ResumeTask();
+        }
+
+        int state = Instances.AsstProxy.TaskPauseState();
+        TaskPaused = state != 0;
+        TaskPausePending = state == 1;
     }
 
     /// <summary>

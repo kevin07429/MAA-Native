@@ -10,6 +10,7 @@
 
 #include "Common/AsstMsg.h"
 #include "Common/AsstTypes.h"
+#include "Common/TaskPauseGate.h"
 
 struct AsstExtAPI
 {
@@ -124,7 +125,29 @@ public:
 
     std::shared_ptr<Status> status() const { return m_status; }
 
-    bool need_exit() const { return m_thread_idle && m_running; }
+    bool need_exit() const;
+    bool pause();
+    bool resume();
+
+    int pause_state() const { return running() ? m_pause_gate.state() : 0; }
+
+    uint64_t pause_epoch() const { return m_pause_gate.epoch(); }
+
+    bool is_task_thread() const { return std::this_thread::get_id() == m_working_thread.get_id(); }
+
+    void begin_task_io()
+    {
+        if (is_task_thread()) {
+            m_pause_gate.begin_io();
+        }
+    }
+
+    void end_task_io()
+    {
+        if (is_task_thread()) {
+            m_pause_gate.end_io();
+        }
+    }
 
 private:
     void append_callback(AsstMsg msg, const json::value& detail);
@@ -210,6 +233,7 @@ private:
     std::shared_ptr<Status> m_status = nullptr;
 
     std::atomic_bool m_thread_exit = false;
+    TaskPauseGate m_pause_gate;
     std::list<std::pair<TaskId, std::shared_ptr<InterfaceTask>>> m_tasks_list;
     inline static std::atomic<TaskId> m_task_id = 0; // 进程级唯一
     ApiCallback m_callback = nullptr;

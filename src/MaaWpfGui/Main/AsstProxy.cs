@@ -1,4 +1,4 @@
-// <copyright file="AsstProxy.cs" company="MaaAssistantArknights">
+﻿// <copyright file="AsstProxy.cs" company="MaaAssistantArknights">
 // Part of the MaaWpfGui project, maintained by the MaaAssistantArknights team (Maa Team)
 // Copyright (C) 2021-2026 MaaAssistantArknights Contributors
 //
@@ -238,7 +238,7 @@ public class AsstProxy
 
     public static unsafe BitmapImage? AsstGetImage(AsstHandle handle)
     {
-        var buffer = ArrayPool<byte>.Shared.Rent(1280 * 720 * 3);
+        var buffer = ArrayPool<byte>.Shared.Rent(16 * 1024 * 1024);
         try
         {
             ulong readSize;
@@ -272,6 +272,11 @@ public class AsstProxy
     public BitmapImage? AsstGetImage()
     {
         return AsstGetImage(GetHandle());
+    }
+
+    internal bool DebugClick(int x, int y)
+    {
+        return MaaService.AsstAsyncClick(GetHandle(), x, y, true) > 0;
     }
 
     public BitmapImage? AsstGetImage(bool forceScreencap)
@@ -509,6 +514,7 @@ public class AsstProxy
         var clientType = SettingsViewModel.GameSettings.ClientType;
 
         string mainRes = PathsHelper.ResourceDir;
+        NativeCaptureService.PrepareResources(mainRes);
         string globalRes = Path.Combine(mainRes, "global", clientType.ToCustomString(), "resource");
         string mainCacheRes = PathsHelper.CacheResourceDir;
         string globalCacheRes = Path.Combine(mainCacheRes, "global", clientType.ToCustomString(), "resource");
@@ -3471,6 +3477,15 @@ public class AsstProxy
             }
         }
 
+        if (SettingsViewModel.ConnectSettings.ConnectConfig is ConnectConfig.General or ConnectConfig.Compatible)
+        {
+            bool accelerated = NativeCaptureService.EnsureStartedAsync(
+                SettingsViewModel.ConnectSettings.AdbPath,
+                SettingsViewModel.ConnectSettings.ConnectAddress).GetAwaiter().GetResult();
+            AsstSetConnectionExtras(SettingsViewModel.ConnectSettings.ConnectConfig.ToString(),
+                accelerated ? "{\"preferEncodedScreencap\":true,\"nativeCapturePort\":17654}" : "{\"preferEncodedScreencap\":false,\"nativeCapturePort\":0}");
+        }
+
         bool ret = AsstConnect(GetHandle(), SettingsViewModel.ConnectSettings.AdbPath, SettingsViewModel.ConnectSettings.ConnectAddress, SettingsViewModel.ConnectSettings.ConnectConfig.ToString());
 
         // 如果连接失败，等待回调完成以获取详细错误信息
@@ -3977,6 +3992,12 @@ public class AsstProxy
     /// 运行中。
     /// </summary>
     /// <returns>是否正在运行。</returns>
+    public bool PauseTask() => MaaService.AsstPause(GetHandle());
+
+    public bool ResumeTask() => MaaService.AsstResume(GetHandle());
+
+    public int TaskPauseState() => MaaService.AsstGetPauseState(GetHandle());
+
     public bool AsstRunning()
     {
         return MaaService.AsstRunning(GetHandle());

@@ -131,7 +131,7 @@ std::optional<std::array<int, 3>> SecretFrontTaskPlugin::read_properties(const c
                                          Task.get("MiniGame@SecretFront@ReadProperty-Medicine") };
     std::array<int, 3> v {};
     for (int i = 0; i < 3; ++i) {
-        auto r = ocr_int(image, tasks[i]->roi);
+        auto r = ocr_int(image, adapt_resource_rect(tasks[i]->roi, tasks[i]->screen_anchor));
         if (!r) {
             return std::nullopt;
         }
@@ -147,7 +147,7 @@ std::optional<SecretFrontTaskPlugin::CardData>
     SecretFrontTaskPlugin::read_card(const cv::Mat& image, int total, int idx) const
 {
     const auto base = card_pos_base(total, idx);
-    const Rect base_rect { base.x, base.y, 0, 0 };
+    const Rect base_rect = adapt_resource_rect({ base.x, base.y, 0, 0 }, "center");
 
     const auto& materiel_r = Task.get("MiniGame@SecretFront@ReadCard-Materiel")->rect_move;
     const auto& intelligence_r = Task.get("MiniGame@SecretFront@ReadCard-Intelligence")->rect_move;
@@ -348,7 +348,8 @@ void SecretFrontTaskPlugin::click_choose_card(int total, int idx) const
         start = 520;
     }
 
-    const Point p { start + idx * step, 600 };
+    const auto target = adapt_resource_rect({ start + idx * step, 600, 1, 1 }, "center");
+    const Point p { target.x, target.y };
     Log.info(__FUNCTION__, "| click_choose_card total=", total, ", idx=", idx);
     for (int i = 0; i < 2; ++i) {
         ctrler()->click(p);
@@ -373,8 +374,9 @@ std::string SecretFrontTaskPlugin::read_stage_name(const cv::Mat& image, int tot
     // 读取卡牌左上角的一小块标题区域，通过文字 OCR 获取 "1A/1B/2A" 等
     const auto base = card_pos_base(total, idx);
     auto title_r = Task.get("MiniGame@SecretFront@EventReplace")->roi;
-    title_r.x += base.x;
-    title_r.y += base.y;
+    const auto adapted_base = adapt_resource_rect({ base.x, base.y, 0, 0 }, "center");
+    title_r.x += adapted_base.x;
+    title_r.y += adapted_base.y;
 
     RegionOCRer ocr(image);
     ocr.set_roi(title_r);
@@ -520,7 +522,7 @@ bool SecretFrontTaskPlugin::_run()
         }
 
         // 一般来说不会走到这里，没识别到就点默认位置
-        ctrler()->click(Task.get("MiniGame@SecretFront@ClickThenActionsDetected")->specific_rect);
+        ctrler()->click(adapt_resource_rect(Task.get("MiniGame@SecretFront@ClickThenActionsDetected")->specific_rect));
         sleep(1000);
         return true;
     }

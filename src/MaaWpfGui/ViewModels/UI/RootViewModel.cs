@@ -1,4 +1,4 @@
-// <copyright file="RootViewModel.cs" company="MaaAssistantArknights">
+﻿// <copyright file="RootViewModel.cs" company="MaaAssistantArknights">
 // Part of the MaaWpfGui project, maintained by the MaaAssistantArknights team (Maa Team)
 // Copyright (C) 2021-2026 MaaAssistantArknights Contributors
 //
@@ -72,31 +72,14 @@ public class RootViewModel : Conductor<Screen>.Collection.OneActive
         }
 
         ShowVersionMismatchWarningOnStartup();
-        if (SettingsViewModel.VersionUpdateSettings.VersionType == VersionUpdateSettingsUserControlModel.UpdateVersionType.Nightly &&
-            !SettingsViewModel.VersionUpdateSettings.HasAcknowledgedNightlyWarning)
+        DebugControlService.Start();
+        _ = NativeCaptureService.EnsureStartedAsync(
+            SettingsViewModel.ConnectSettings.AdbPath,
+            SettingsViewModel.ConnectSettings.ConnectAddress);
+        if (SettingsViewModel.VersionUpdateSettings.StartupUpdateCheck)
         {
-            MessageBoxHelper.Show(LocalizationHelper.GetString("NightlyWarning"));
+            _ = ResourceUpdater.ResourceUpdateAndReloadAsync();
         }
-
-        Task.Run(async () => {
-            await Instances.AnnouncementDialogViewModel.CheckAndDownloadAnnouncement();
-            if (Instances.AnnouncementDialogViewModel.DoNotRemindThisAnnouncementAgain)
-            {
-                return;
-            }
-
-            if (Instances.AnnouncementDialogViewModel.DoNotShowAnnouncement)
-            {
-                return;
-            }
-
-            if (Instances.AnnouncementDialogViewModel.AnnouncementInfo != string.Empty)
-            {
-                _ = Execute.OnUIThreadAsync(() => Instances.WindowManager.ShowWindow(Instances.AnnouncementDialogViewModel));
-            }
-        });
-
-        _ = StartupIntegrityCheckAndUpdateAsync();
 
         // 主窗口已显示，此时弹窗不会导致 WPF 因无窗口而退出
         Task.Run(ConfigBrokenCheck);

@@ -139,7 +139,8 @@ std::optional<asst::Point> asst::PixelPaintTaskPlugin::palette_slot_pos(int colo
         }
         auto params = task->special_params;
         // [x0,x1,x2,x3, y0..y5]
-        return asst::Point { params[col], params[4 + row] };
+        const auto target = adapt_resource_rect({ params[col], params[4 + row], 1, 1 }, task->screen_anchor);
+        return asst::Point { target.x, target.y };
     }
 
     auto task = Task.get(bottom_task);
@@ -151,7 +152,8 @@ std::optional<asst::Point> asst::PixelPaintTaskPlugin::palette_slot_pos(int colo
     // [x0..x3, y0..y5, bottom_first_global_row]
     const int first_global_row = params[10];
     const int visible_row = row - first_global_row;
-    return asst::Point { params[col], params[4 + visible_row] };
+    const auto target = adapt_resource_rect({ params[col], params[4 + visible_row], 1, 1 }, task->screen_anchor);
+    return asst::Point { target.x, target.y };
 }
 
 std::optional<asst::Point> asst::PixelPaintTaskPlugin::grid_center(int x, int y) const
@@ -163,10 +165,12 @@ std::optional<asst::Point> asst::PixelPaintTaskPlugin::grid_center(int x, int y)
     }
     auto params = task->special_params;
     // [left, top, right, bottom]
-    const int left = params[0];
-    const int top = params[1];
-    const int right = params[2];
-    const int bottom = params[3];
+    const auto grid =
+        adapt_resource_rect({ params[0], params[1], params[2] - params[0], params[3] - params[1] }, "center");
+    const int left = grid.x;
+    const int top = grid.y;
+    const int right = grid.x + grid.width;
+    const int bottom = grid.y + grid.height;
 
     constexpr int GridSize = 24;
     const double cell_w = static_cast<double>(right - left) / GridSize;

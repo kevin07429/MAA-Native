@@ -22,6 +22,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -105,6 +106,7 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
 
             var currentDirectory = AppDomain.CurrentDomain.BaseDirectory;
 
+            maaDlls.UnionWith(GetDeclaredRuntimeDlls(Path.Combine(currentDirectory, "MAA.deps.json")));
             var dllFiles = Directory.GetFiles(currentDirectory, "*.dll");
 
             return [.. dllFiles
@@ -115,6 +117,38 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
         {
             return [];
         }
+    }
+
+    internal static HashSet<string> GetDeclaredRuntimeDlls(string depsPath)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!File.Exists(depsPath))
+        {
+            return names;
+        }
+        using var document = JsonDocument.Parse(File.ReadAllText(depsPath));
+        foreach (var target in document.RootElement.GetProperty("targets").EnumerateObject())
+        {
+            foreach (var library in target.Value.EnumerateObject())
+            {
+                foreach (string kind in new[] { "runtime", "native", "runtimeTargets" })
+                {
+                    if (!library.Value.TryGetProperty(kind, out var assets))
+                    {
+                        continue;
+                    }
+                    foreach (var asset in assets.EnumerateObject())
+                    {
+                        string name = Path.GetFileName(asset.Name.Replace('/', Path.DirectorySeparatorChar));
+                        if (name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                        {
+                            names.Add(name);
+                        }
+                    }
+                }
+            }
+        }
+        return names;
     }
 
     private static bool IsVCppInstalled()

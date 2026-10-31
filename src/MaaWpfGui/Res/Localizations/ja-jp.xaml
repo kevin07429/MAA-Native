@@ -1,4 +1,4 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
     <!--  設定  -->
     <system:String x:Key="Settings">設定</system:String>
     <system:String x:Key="GeneralSettings">一般設定</system:String>
@@ -1600,8 +1600,8 @@ C:\leidian\LDPlayer9
     <system:String x:Key="ErrorQqGroupLinkText">QQグループに入ります</system:String>
     <system:String x:Key="ErrorCrashMessageHeader">上記の問題により、プログラムが異常終了しました。</system:String>
     <system:String x:Key="ErrorCrashMessageOpenLog">｢{key=Settings} - {key=IssueReport} - {key=OpenDebugFolder}｣ に移動してログを確認し、エラーが発生した具体的な原因を確認できます。</system:String>
-    <system:String x:Key="ErrorCrashMessageGenerateReport">｢{key=Settings} - {key=IssueReport} - {key=GenerateSupportPayload}｣ を使用してエラーレポートを生成し、青色の ｢{key=Issue}｣ リンクをクリックしてフィードバックを送信してください。プログラムが終了している場合は、debug、config、cache フォルダーを手動で圧縮してください。</system:String>
-    <system:String x:Key="ErrorCrashMessageHelpTip">他人に助けを求める場合は、このウィンドウのスクリーンショット、画面録画、写真、撮影した動画、手描きの図、写し書きした内容ではなく、生成されたエラーレポートファイルを送信してください。GitHub の添付ファイルは 1 つにつき 20 MB までです。超える場合は分割圧縮してください。</system:String>
+    <system:String x:Key="ErrorCrashMessageGenerateReport">{key=Settings} - {key=IssueReport} - {key=GenerateSupportPayload}</system:String>
+    <system:String x:Key="ErrorCrashMessageHelpTip">{key=OpenDebugFolder}</system:String>
     <system:String x:Key="ErrorCrashDialogTitle">前回のクラッシュ原因</system:String>
     <system:String x:Key="CopyErrorMessage">エラー情報をコピーする</system:String>
     <!--  !ErrorView  -->
@@ -2797,4 +2797,12 @@ MAA を複数開くには、新しい MAA を他のフォルダにコピーし�
     <system:String x:Key="BlackFlowStartRunRewardsSeen">今回の支援画面：{0}</system:String>
     <system:String x:Key="BlackFlowStartRunPrepared">探索の準備が完了しました</system:String>
     <system:String x:Key="BlackFlowStartRunPreparedReason">第3層に到達しました。次の探索では指定の難易度と分隊を使用します</system:String>
+    <system:String x:Key="NativeResourceStartup">起動時に本体とリソースの更新を確認</system:String>
+    <system:String x:Key="NativeResourceSchedule">定期的にリソース更新を確認</system:String>
+    <system:String x:Key="NativeEditionInfo">ネイティブ解像度対応版。スクリーンショット高速化と無線接続維持は自動実行されます。ゲームリソース更新に対応。著作権とライセンスはローカルの LICENSE を参照。</system:String>
+    <system:String x:Key="PauseCurrentTask">一時停止</system:String>
+    <system:String x:Key="ResumeCurrentTask">再開</system:String>
+    <system:String x:Key="TaskPausePending">停止中…</system:String>
+    <system:String x:Key="NativeProgramUpdateSource">本体更新: kevin07429/MAA-Native · リソース: 公式 MAA</system:String>
+    <system:String x:Key="NativeProgramUpdate">本体更新を確認してダウンロード</system:String>
 </ResourceDictionary>

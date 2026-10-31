@@ -35,10 +35,14 @@ public:
         MatchPath path;
     };
 
-    static std::vector<RawResult> preproc_and_match(const cv::Mat& image, const MatcherConfig::Params& params);
+    static std::vector<RawResult> preproc_and_match(
+        const cv::Mat& image,
+        const MatcherConfig::Params& params,
+        bool allow_native_scaling = false,
+        bool stop_after_match = true);
 
 protected:
-    virtual void _set_roi(const Rect& roi) override { set_roi(roi); }
+    virtual void _set_roi(const Rect& roi) override { set_task_roi(roi); }
 
 private:
     // FIXME: 老接口太难重构了，先弄个这玩意兼容下，后续慢慢全删掉

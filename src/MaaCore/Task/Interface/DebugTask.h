@@ -23,6 +23,7 @@ private:
     void test_skill_ready();
     void test_battle_image();
     void test_match_template();
+    bool image_test_vision();
 
     // 以下为离线图片评估入口：不连设备，对本地图片跑与线上一致的识别链路，
     // 结果通过 SubTaskExtraInfo 回调（what = "DebugImageTest"）与日志输出。

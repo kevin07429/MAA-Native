@@ -22,6 +22,7 @@ public:
         bool color_close = true;            // 数色时是否使用闭运算处理
         bool pure_color = false;            // 数色时是否忽略模板匹配结果
         int nms_distance = 0;               // 多匹配去重半径，0 时按模板短边的一半取值
+        std::vector<double> native_scales;
     };
 
 public:
@@ -42,6 +43,8 @@ public:
     void set_color_scales(MatchTaskInfo::Ranges color_scales, bool color_close = true);
     void set_pure_color(bool pure_color) noexcept;
     void set_method(MatchMethod method) noexcept;
+
+    void set_native_scales(std::vector<double> scales) { m_params.native_scales = std::move(scales); }
 
 protected:
     virtual void _set_roi(const Rect& roi) = 0;

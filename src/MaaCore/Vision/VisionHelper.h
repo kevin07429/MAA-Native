@@ -4,6 +4,7 @@
 #include "InstHelper.h"
 #include "MaaUtils/NoWarningCVMat.hpp"
 #include "Utils/Platform.hpp"
+#include <optional>
 #include <ranges>
 
 #if __has_include(<opencv2/xfeatures2d.hpp>)
@@ -32,6 +33,7 @@ public:
 
     virtual void set_image(const cv::Mat& image);
     virtual void set_roi(const Rect& roi);
+    void set_task_roi(const Rect& roi, bool fixed = false);
     virtual void set_log_tracing(bool enable);
 
     bool save_img(const std::filesystem::path& relative_dir = utils::path("debug"));
@@ -55,6 +57,8 @@ protected:
     cv::Mat m_image_draw;
 #endif
     Rect m_roi;
+    std::optional<Rect> m_task_roi;
+    bool m_fixed_task_roi = false;
     bool m_log_tracing = true;
 
 private:

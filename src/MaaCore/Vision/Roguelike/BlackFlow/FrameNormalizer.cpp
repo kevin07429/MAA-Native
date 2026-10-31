@@ -1,5 +1,6 @@
 #include "Vision/Roguelike/BlackFlow/FrameNormalizer.h"
 
+#include "Config/GeneralConfig.h"
 #include <cmath>
 #include <opencv2/imgproc.hpp>
 
@@ -29,25 +30,30 @@ bool
     const double source_aspect = static_cast<double>(source.cols) / source.rows;
     const double target_aspect = static_cast<double>(m_width) / m_height;
     const double relative_error = std::abs(source_aspect - target_aspect) / target_aspect;
-    if (relative_error > m_aspect_tolerance) {
+    const bool native = Config.get_options().native_resolution;
+    if (!native && relative_error > m_aspect_tolerance) {
         error = "Screenshot aspect ratio is not compatible with the configured 16:9 logical canvas";
         return false;
     }
 
     info.source_width = source.cols;
     info.source_height = source.rows;
-    info.normalized_width = m_width;
-    info.normalized_height = m_height;
-    info.scale_x = static_cast<double>(m_width) / source.cols;
-    info.scale_y = static_cast<double>(m_height) / source.rows;
-    if (source.cols == m_width && source.rows == m_height) {
+    const double scale =
+        std::max(static_cast<double>(m_width) / source.cols, static_cast<double>(m_height) / source.rows);
+    const int width = native ? static_cast<int>(source.cols * scale) : m_width;
+    const int height = native ? static_cast<int>(source.rows * scale) : m_height;
+    info.normalized_width = width;
+    info.normalized_height = height;
+    info.scale_x = static_cast<double>(width) / source.cols;
+    info.scale_y = static_cast<double>(height) / source.rows;
+    if (source.cols == width && source.rows == height) {
         output = source;
         info.interpolation = "none";
         return true;
     }
 
-    const int interpolation = source.cols > m_width || source.rows > m_height ? cv::INTER_AREA : cv::INTER_CUBIC;
-    cv::resize(source, output, cv::Size(m_width, m_height), 0.0, 0.0, interpolation);
+    const int interpolation = source.cols > width || source.rows > height ? cv::INTER_AREA : cv::INTER_CUBIC;
+    cv::resize(source, output, cv::Size(width, height), 0.0, 0.0, interpolation);
     info.interpolation = interpolation == cv::INTER_AREA ? "area" : "cubic";
     return !output.empty();
 }

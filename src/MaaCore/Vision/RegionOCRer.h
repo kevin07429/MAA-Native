@@ -23,7 +23,8 @@ public:
 protected:
     using OCRerConfig::set_without_det;
 
-    virtual void _set_roi(const Rect& roi) override { set_roi(roi); }
+    // Region recognition expects one text line; expanding it can merge adjacent numbers.
+    virtual void _set_roi(const Rect& roi) override { set_task_roi(roi, true); }
 
     void bin_left_trim(cv::Mat& bin) const;
     void bin_right_trim(cv::Mat& bin) const;

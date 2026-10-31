@@ -79,7 +79,21 @@ internal static partial class MaaService
     internal static partial bool AsstStop(AsstHandle handle);
 
     [LibraryImport("MaaCore.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool AsstPause(AsstHandle handle);
+
+    [LibraryImport("MaaCore.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool AsstResume(AsstHandle handle);
+
+    [LibraryImport("MaaCore.dll")]
+    internal static partial int AsstGetPauseState(AsstHandle handle);
+
+    [LibraryImport("MaaCore.dll")]
     internal static unsafe partial Int32 AsstAsyncScreencap(AsstHandle handle, [MarshalAs(UnmanagedType.Bool)] bool block);
+
+    [LibraryImport("MaaCore.dll")]
+    internal static partial int AsstAsyncClick(AsstHandle handle, int x, int y, [MarshalAs(UnmanagedType.Bool)] bool block);
 
     [LibraryImport("MaaCore.dll")]
     internal static unsafe partial ulong AsstGetImage(AsstHandle handle, byte* buff, ulong buffSize);

@@ -67,16 +67,12 @@ extern "C"
     // 设置实例级参数。
     // InstanceOptionKey::ClientType 仅在所选连接配置的 connect 阶段命令依赖 [PackageName] 时需要预先设置；
     // 当前内置配置中仅 Androws / WSA 的 displayId 查询依赖该值。
-    AsstBool ASSTAPI
-        AsstSetInstanceOption(AsstHandle handle, AsstInstanceOptionKey key, const char* value);
+    AsstBool ASSTAPI AsstSetInstanceOption(AsstHandle handle, AsstInstanceOptionKey key, const char* value);
 
     // 同步连接，功能已完全被异步连接取代
     // FIXME: 5.0 版本将废弃此接口
-    /* deprecated */ AsstBool ASSTAPI AsstConnect(
-        AsstHandle handle,
-        const char* adb_path,
-        const char* address,
-        const char* config);
+    /* deprecated */ AsstBool ASSTAPI
+        AsstConnect(AsstHandle handle, const char* adb_path, const char* address, const char* config);
 
     AsstTaskId ASSTAPI AsstAppendTask(AsstHandle handle, const char* type, const char* params);
     AsstBool ASSTAPI AsstSetTaskParams(AsstHandle handle, AsstTaskId id, const char* params);
@@ -84,6 +80,9 @@ extern "C"
     AsstBool ASSTAPI AsstStart(AsstHandle handle);
     AsstBool ASSTAPI AsstStop(AsstHandle handle);
     AsstBool ASSTAPI AsstRunning(AsstHandle handle);
+    AsstBool ASSTAPI AsstPause(AsstHandle handle);
+    AsstBool ASSTAPI AsstResume(AsstHandle handle);
+    int ASSTAPI AsstGetPauseState(AsstHandle handle);
     AsstBool ASSTAPI AsstConnected(AsstHandle handle);
     AsstBool ASSTAPI AsstBackToHome(AsstHandle handle);
 

@@ -308,7 +308,7 @@ void asst::RoguelikeFoldartalUseTaskPlugin::slowly_swipe(const bool direction, i
         swipe_dist = -swipe_dist;
     }
     const auto swipe_task = Task.get(swipe_task_name);
-    const Rect& start_point = swipe_task->specific_rect;
+    const Rect start_point = adapt_resource_rect(swipe_task->specific_rect, swipe_task->screen_anchor);
     ctrler()->swipe(
         start_point,
         { start_point.x + swipe_dist - start_point.width, start_point.y, start_point.width, start_point.height },

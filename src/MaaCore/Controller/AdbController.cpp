@@ -1,4 +1,5 @@
 #include "AdbController.h"
+#include "NativeCaptureSocket.h"
 
 #include "Assistant.h"
 #include "Controller.h"
@@ -732,8 +733,44 @@ bool asst::AdbController::screencap(cv::Mat& image_payload, bool allow_reconnect
         return true;
     };
 
+    const auto capture_encoded = [&]() {
+        const int port = m_conn_ctx.adb_cfg.extras.get("nativeCapturePort", 0);
+        if (port > 0 && port <= 65535) {
+            const auto direct_start = steady_clock::now();
+            const auto encoded = native_capture::read_frame(static_cast<unsigned short>(port), milliseconds(3000));
+            if (encoded && decode_encode(*encoded)) {
+                Log.info("Native socket screencap", duration_cast<milliseconds>(steady_clock::now() - direct_start).count(),
+                         "ms, bytes", encoded->size());
+                return ScreencapResult::Success;
+            }
+            Log.warn("Native capture socket unavailable; falling back to encoded command");
+        }
+        return screencap(m_adb.screencap_encode, decode_encode, allow_reconnect);
+    };
+
     image_payload = cv::Mat(); // 清空缓存
     if (m_adb.screencap_method == AdbProperty::ScreencapMethod::UnknownYet) {
+        // Opt-in for an on-demand encoded capture service. A black/cheap frame
+        // during connection must not pin the controller to gzip for the task.
+        if (m_conn_ctx.adb_cfg.extras.get("preferEncodedScreencap", false)) {
+            clear_lf_info();
+            const auto preferred_start = steady_clock::now();
+            if (capture_encoded() == ScreencapResult::Success) {
+                const auto cost = duration_cast<milliseconds>(steady_clock::now() - preferred_start).count();
+                m_adb.screencap_method = AdbProperty::ScreencapMethod::Encode;
+                m_inited = true;
+                Log.info("Using preferred encoded screencap", cost, "ms");
+                callback(AsstMsg::ConnectionInfo, json::object {
+                    { "uuid", m_uuid }, { "what", "FastestWayToScreencap" },
+                    { "details", json::object {
+                        { "method", "Encode" }, { "cost", cost }, { "selection", "Preferred" },
+                        { "alternatives", json::array {} },
+                    } },
+                });
+                return true;
+            }
+            Log.warn("Preferred encoded screencap failed; probing other methods");
+        }
         std::vector<std::pair<AdbProperty::ScreencapMethod, std::string>> all_methods_cost;
         auto fastest_method = AdbProperty::ScreencapMethod::UnknownYet;
 
@@ -778,7 +815,7 @@ bool asst::AdbController::screencap(cv::Mat& image_payload, bool allow_reconnect
         clear_lf_info();
 
         start_time = steady_clock::now();
-        if (screencap(m_adb.screencap_encode, decode_encode, allow_reconnect) == ScreencapResult::Success) {
+        if (capture_encoded() == ScreencapResult::Success) {
             auto duration = duration_cast<milliseconds>(steady_clock::now() - start_time);
             if (duration < min_cost) {
                 fastest_method = AdbProperty::ScreencapMethod::Encode;
@@ -878,7 +915,7 @@ bool asst::AdbController::screencap(cv::Mat& image_payload, bool allow_reconnect
             screencap_result = screencap(m_adb.screencap_raw_with_gzip, decode_raw_with_gzip, allow_reconnect);
             break;
         case AdbProperty::ScreencapMethod::Encode:
-            screencap_result = screencap(m_adb.screencap_encode, decode_encode, allow_reconnect);
+            screencap_result = capture_encoded();
             break;
 #if ASST_WITH_EMULATOR_EXTRAS
         case AdbProperty::ScreencapMethod::MumuExtras: {

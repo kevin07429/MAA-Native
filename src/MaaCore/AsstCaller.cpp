@@ -253,6 +253,24 @@ AsstAsyncCallId AsstAsyncScreencap(AsstHandle handle, AsstBool block)
     return handle->async_screencap(block);
 }
 
+AsstBool AsstPause(AsstHandle handle)
+{
+    auto* assistant = dynamic_cast<asst::Assistant*>(handle);
+    return inited() && assistant && assistant->pause();
+}
+
+AsstBool AsstResume(AsstHandle handle)
+{
+    auto* assistant = dynamic_cast<asst::Assistant*>(handle);
+    return inited() && assistant && assistant->resume();
+}
+
+int AsstGetPauseState(AsstHandle handle)
+{
+    auto* assistant = dynamic_cast<asst::Assistant*>(handle);
+    return inited() && assistant ? assistant->pause_state() : 0;
+}
+
 AsstSize AsstGetImage(AsstHandle handle, void* buff, AsstSize buff_size)
 {
     if (!inited() || handle == nullptr || buff == nullptr) {
@@ -319,7 +337,7 @@ AsstSize AsstGetNullSize()
 
 const char* AsstGetVersion()
 {
-    return MAA_VERSION;
+    return NATIVE_APP_VERSION;
 }
 
 void AsstLog(const char* level, const char* message)

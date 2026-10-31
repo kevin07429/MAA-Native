@@ -1,4 +1,4 @@
-// <copyright file="VersionUpdateSettingsUserControlModel.cs" company="MaaAssistantArknights">
+﻿// <copyright file="VersionUpdateSettingsUserControlModel.cs" company="MaaAssistantArknights">
 // Part of the MaaWpfGui project, maintained by the MaaAssistantArknights team (Maa Team)
 // Copyright (C) 2021-2026 MaaAssistantArknights Contributors
 //
@@ -496,48 +496,7 @@ public class VersionUpdateSettingsUserControlModel : PropertyChangedBase
     [UsedImplicitly]
     public async Task ManualUpdate()
     {
-        if (IsCheckingForUpdates)
-        {
-            return;
-        }
-
-        if (SettingsViewModel.VersionUpdateSettings.UpdateSource == UpdateSource.MirrorChyan && string.IsNullOrEmpty(SettingsViewModel.VersionUpdateSettings.MirrorChyanCdk))
-        {
-            ToastNotification.ShowDirect(LocalizationHelper.GetString("MirrorChyanSelectedButNoCdk"));
-            return;
-        }
-
-        var ret = await Instances.VersionUpdateDialogViewModel.CheckAndDownloadVersionUpdate();
-
-        var toastMessage = ret switch {
-            VersionUpdateDialogViewModel.CheckUpdateRetT.NoNeedToUpdate => string.Empty,
-            VersionUpdateDialogViewModel.CheckUpdateRetT.NoNeedToUpdateDebugVersion => LocalizationHelper.GetString("NoNeedToUpdateDebugVersion"),
-            VersionUpdateDialogViewModel.CheckUpdateRetT.AlreadyLatest => LocalizationHelper.GetString("AlreadyLatest"),
-            VersionUpdateDialogViewModel.CheckUpdateRetT.UnknownError => LocalizationHelper.GetString("NewVersionDetectFailedTitle"),
-            VersionUpdateDialogViewModel.CheckUpdateRetT.NetworkError => LocalizationHelper.GetString("CheckNetworking"),
-            VersionUpdateDialogViewModel.CheckUpdateRetT.FailedToGetInfo => LocalizationHelper.GetString("GetReleaseNoteFailed"),
-            VersionUpdateDialogViewModel.CheckUpdateRetT.UpdatePackageDownloadFailed => LocalizationHelper.GetString("NewVersionDownloadFailedTitle"),
-            VersionUpdateDialogViewModel.CheckUpdateRetT.OK => string.Empty,
-            VersionUpdateDialogViewModel.CheckUpdateRetT.NewVersionIsBeingBuilt => LocalizationHelper.GetString("NewVersionIsBeingBuilt"),
-            VersionUpdateDialogViewModel.CheckUpdateRetT.OnlyGameResourceUpdated => LocalizationHelper.GetString("GameResourceUpdated"),
-            VersionUpdateDialogViewModel.CheckUpdateRetT.NoMirrorChyanCdk => LocalizationHelper.GetString("MirrorChyanSelectedButNoCdk"),
-            _ => string.Empty,
-        };
-
-        if (toastMessage != string.Empty)
-        {
-            ToastNotification.ShowDirect(toastMessage);
-        }
-
-        if (ret == VersionUpdateDialogViewModel.CheckUpdateRetT.AlreadyLatest)
-        {
-            AchievementTrackerHelper.Instance.Unlock(AchievementIds.LatestVersionInspector);
-        }
-
-        if (ret == VersionUpdateDialogViewModel.CheckUpdateRetT.OK)
-        {
-            _ = Instances.VersionUpdateDialogViewModel.AskToRestart();
-        }
+        await Instances.VersionUpdateDialogViewModel.VersionUpdateAndAskToRestartAsync();
     }
 
     [UsedImplicitly]
@@ -556,7 +515,9 @@ public class VersionUpdateSettingsUserControlModel : PropertyChangedBase
 
         IsCheckingForUpdates = true;
 
-        var (ret, uri, releaseNote) = await ResourceUpdater.CheckFromMirrorChyanAsync();
+        var (ret, uri, releaseNote) = UpdateSource == UpdateSource.MirrorChyan
+            ? await ResourceUpdater.CheckFromMirrorChyanAsync()
+            : (VersionUpdateDialogViewModel.CheckUpdateRetT.OK, (string?)null, (string?)null);
         var toastMessage = ret switch {
             VersionUpdateDialogViewModel.CheckUpdateRetT.AlreadyLatest => LocalizationHelper.GetString("AlreadyLatest"),
             VersionUpdateDialogViewModel.CheckUpdateRetT.UnknownError => LocalizationHelper.GetString("NewVersionDetectFailedTitle"),
@@ -597,21 +558,6 @@ public class VersionUpdateSettingsUserControlModel : PropertyChangedBase
     [UsedImplicitly]
     public void ShowChangelog()
     {
-        AchievementTrackerHelper.Instance.Unlock(AchievementIds.ChangelogReader);
-        _ = Instances.VersionUpdateDialogViewModel.DownloadMissingContributorAvatarsAsync();
-        if (Instances.VersionUpdateDialogViewModel.View is System.Windows.Window window)
-        {
-            if (window.WindowState == System.Windows.WindowState.Minimized)
-            {
-                window.WindowState = System.Windows.WindowState.Normal;
-            }
-
-            window.Activate();
-        }
-        else
-        {
-            Instances.WindowManager.ShowWindow(Instances.VersionUpdateDialogViewModel);
-        }
     }
 
     /// <summary>

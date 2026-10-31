@@ -21,7 +21,7 @@ bool asst::RoguelikeRecruitSupportAnalyzer::analyze()
         // 识别“选择助战”
         OCRer analyzer(m_image);
         const auto& task = Task.get<OcrTaskInfo>("RoguelikeChooseSupportBtnOcr");
-        analyzer.set_roi(task->roi);
+        analyzer.set_task_roi(task->roi);
         analyzer.set_required(task->text);
         if (!analyzer.analyze()) {
             return false;
@@ -33,7 +33,7 @@ bool asst::RoguelikeRecruitSupportAnalyzer::analyze()
     else if (m_mode == battle::roguelike::SupportAnalyzeMode::AnalyzeChars) {
         // 识别干员
         OCRer analyzer(m_image);
-        analyzer.set_roi(Task.get("RoguelikeRecruitSupportOcr")->roi);
+        analyzer.set_task_roi(Task.get("RoguelikeRecruitSupportOcr")->roi);
         analyzer.set_required(m_required);
         analyzer.set_replace(
             Task.get<OcrTaskInfo>("CharsNameOcrReplace")->replace_map,

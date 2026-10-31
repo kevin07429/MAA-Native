@@ -64,7 +64,7 @@ bool asst::RoguelikeInvestTaskPlugin::_run()
         }
     };
     // 投资确认按钮
-    const auto& click_rect = Task.get("Roguelike@StageTraderInvest-Confirm")->specific_rect;
+    const auto click_rect = adapt_resource_rect(Task.get("Roguelike@StageTraderInvest-Confirm")->specific_rect);
     LogInfo << __FUNCTION__ << "start investing, deposit: " << deposit.value_or(-1)
             << ", investable count: " << count_limit;
     while (!need_exit() && deposit && *deposit < 999 && count_limit - count > 0) {

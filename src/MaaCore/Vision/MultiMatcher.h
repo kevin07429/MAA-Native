@@ -21,7 +21,7 @@ public:
     const auto& get_result() const noexcept { return m_result; }
 
 protected:
-    virtual void _set_roi(const Rect& roi) override { set_roi(roi); }
+    virtual void _set_roi(const Rect& roi) override { set_task_roi(roi); }
 
 private:
     // FIXME: 老接口太难重构了，先弄个这玩意兼容下，后续慢慢全删掉

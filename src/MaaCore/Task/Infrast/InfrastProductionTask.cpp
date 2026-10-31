@@ -287,7 +287,7 @@ bool asst::InfrastProductionTask::shift_facility_list()
                 LogWarn << __FUNCTION__ << "left facility with unexecuted production plan, index"
                         << m_cur_facility_index;
                 const auto leave_task_ptr = Task.get("InfrastUnexecutedPlanLeaveConfirm");
-                ctrler()->click(leave_task_ptr->specific_rect);
+                ctrler()->click(adapt_resource_rect(leave_task_ptr->specific_rect, leave_task_ptr->screen_anchor));
                 sleep(leave_task_ptr->post_delay);
                 sleep(tab_task_ptr->pre_delay);
                 ctrler()->click(tab);

@@ -5,6 +5,8 @@
 
 #include "MaaUtils/NoWarningCV.hpp"
 
+#include "Common/AdaptiveLayout.h"
+#include "Config/GeneralConfig.h"
 #include "Config/TaskData.h"
 #include "Config/TemplResource.h"
 #include "Utils/Logger.hpp"
@@ -275,7 +277,10 @@ BattlefieldMatcher::MatchResult<std::pair<int, int>> BattlefieldMatcher::kills_a
 {
     const auto& flag_task = Task.get<MatchTaskInfo>("BattleKillsFlag");
     cv::Mat template_image = TemplResource::get_instance().get_templ("BattleKillsFlag.png");
-    cv::Mat match_image = make_roi(m_image, flag_task->roi);
+    const auto flag_roi = Config.get_options().native_resolution
+                              ? adaptive::search_rect(flag_task->roi, m_image.cols, m_image.rows)
+                              : flag_task->roi;
+    cv::Mat match_image = make_roi(m_image, correct_rect(flag_roi, m_image));
 
     // 对模板图和截图都进行一次模糊，减少yj缩放对文字及细节的影响，提升命中率
     cv::Mat template_blur, image_blur;
@@ -284,7 +289,7 @@ BattlefieldMatcher::MatchResult<std::pair<int, int>> BattlefieldMatcher::kills_a
 
     Matcher flag_match(image_blur);
     flag_match.set_mask_ranges(flag_task->mask_ranges);
-    flag_match.set_roi({ 0, 0, flag_task->roi.width, flag_task->roi.height });
+    flag_match.set_roi({ 0, 0, match_image.cols, match_image.rows });
     flag_match.set_templ(template_blur);
     flag_match.set_method(MatchMethod::Ccoeff);
     flag_match.set_threshold(flag_task->templ_thresholds);
@@ -294,8 +299,8 @@ BattlefieldMatcher::MatchResult<std::pair<int, int>> BattlefieldMatcher::kills_a
     }
 
     auto flag_rect = flag_match.get_result().rect;
-    flag_rect.x += flag_task->roi.x;
-    flag_rect.y += flag_task->roi.y;
+    flag_rect.x += flag_roi.x;
+    flag_rect.y += flag_roi.y;
 
     if (hit_kills_cache(flag_rect)) {
         return { .status = MatchStatus::HitCache };
@@ -406,6 +411,9 @@ BattlefieldMatcher::MatchResult<int> BattlefieldMatcher::costs_analyze() const
     }
     RegionOCRer cost_analyzer(m_image);
     cost_analyzer.set_task_info("BattleCostData");
+    if (Config.get_options().native_resolution) {
+        cost_analyzer.set_roi(adaptive::fixed_rect(Task.get("BattleCostData")->roi, m_image.cols, m_image.rows));
+    }
     auto cost_opt = cost_analyzer.analyze();
     if (!cost_opt) {
         return {};
@@ -424,8 +432,11 @@ bool asst::BattlefieldMatcher::hit_costs_cache() const
         return false;
     }
     const auto& task = Task.get("BattleCostData");
-    cv::Mat cost_image_cache = make_roi(m_image_prev, task->roi);
-    cv::Mat cost_image = make_roi(m_image, task->roi);
+    const auto roi = Config.get_options().native_resolution
+                         ? adaptive::fixed_rect(task->roi, m_image.cols, m_image.rows)
+                         : task->roi;
+    cv::Mat cost_image_cache = make_roi(m_image_prev, roi);
+    cv::Mat cost_image = make_roi(m_image, roi);
     cv::cvtColor(cost_image_cache, cost_image_cache, cv::COLOR_BGR2GRAY);
     cv::cvtColor(cost_image, cost_image, cv::COLOR_BGR2GRAY);
     cv::normalize(cost_image_cache, cost_image_cache, 0, 255, cv::NORM_MINMAX);
@@ -443,7 +454,10 @@ bool asst::BattlefieldMatcher::hit_costs_cache() const
 bool BattlefieldMatcher::pause_button_analyze() const
 {
     auto task_ptr = Task.get("BattleHasStarted");
-    cv::Mat roi = m_image(make_rect<cv::Rect>(task_ptr->roi));
+    const auto button_roi = Config.get_options().native_resolution
+                                ? adaptive::fixed_rect(task_ptr->roi, m_image.cols, m_image.rows)
+                                : task_ptr->roi;
+    cv::Mat roi = m_image(make_rect<cv::Rect>(button_roi));
     cv::Mat roi_gray;
     cv::cvtColor(roi, roi_gray, cv::COLOR_BGR2GRAY);
     cv::Mat bin;
@@ -454,11 +468,11 @@ bool BattlefieldMatcher::pause_button_analyze() const
     Log.trace(__FUNCTION__, "count", count, "threshold", count_threshold);
 
 #ifdef ASST_DEBUG
-    cv::rectangle(m_image_draw, make_rect<cv::Rect>(task_ptr->roi), cv::Scalar(0, 0, 255), 2);
+    cv::rectangle(m_image_draw, make_rect<cv::Rect>(button_roi), cv::Scalar(0, 0, 255), 2);
     cv::putText(
         m_image_draw,
         std::to_string(count) + "/" + std::to_string(count_threshold),
-        cv::Point(task_ptr->roi.x, task_ptr->roi.y + task_ptr->roi.height + 10),
+        cv::Point(button_roi.x, button_roi.y + button_roi.height + 10),
         cv::FONT_HERSHEY_PLAIN,
         1.2,
         cv::Scalar(255, 255, 255),
@@ -472,7 +486,10 @@ bool BattlefieldMatcher::in_detail_analyze() const
 {
     auto analyze = [&](const std::string& task_name) {
         auto task_ptr = Task.get(task_name);
-        cv::Mat roi = m_image(make_rect<cv::Rect>(task_ptr->roi));
+        const auto rect = Config.get_options().native_resolution
+                              ? adaptive::fixed_rect(task_ptr->roi, m_image.cols, m_image.rows)
+                              : task_ptr->roi;
+        cv::Mat roi = make_roi(m_image, correct_rect(rect, m_image));
         cv::Mat roi_hsv;
         cv::cvtColor(roi, roi_hsv, cv::COLOR_BGR2HSV);
         cv::Mat bin1;
@@ -498,7 +515,10 @@ bool BattlefieldMatcher::in_detail_analyze() const
 bool asst::BattlefieldMatcher::speed_button_analyze() const
 {
     auto task_ptr = Task.get("BattleSpeedButton");
-    cv::Mat roi = m_image(make_rect<cv::Rect>(task_ptr->roi));
+    const auto button_roi = Config.get_options().native_resolution
+                                ? adaptive::fixed_rect(task_ptr->roi, m_image.cols, m_image.rows)
+                                : task_ptr->roi;
+    cv::Mat roi = m_image(make_rect<cv::Rect>(button_roi));
     cv::Mat roi_gray;
     cv::cvtColor(roi, roi_gray, cv::COLOR_BGR2GRAY);
     cv::Mat bin;
@@ -509,11 +529,11 @@ bool asst::BattlefieldMatcher::speed_button_analyze() const
     Log.trace(__FUNCTION__, "count", count, "threshold", count_threshold);
 
 #ifdef ASST_DEBUG
-    cv::rectangle(m_image_draw, make_rect<cv::Rect>(task_ptr->roi), cv::Scalar(0, 0, 255), 2);
+    cv::rectangle(m_image_draw, make_rect<cv::Rect>(button_roi), cv::Scalar(0, 0, 255), 2);
     cv::putText(
         m_image_draw,
         std::to_string(count) + "/" + std::to_string(count_threshold),
-        cv::Point(task_ptr->roi.x, task_ptr->roi.y + task_ptr->roi.height + 20),
+        cv::Point(button_roi.x, button_roi.y + button_roi.height + 20),
         cv::FONT_HERSHEY_PLAIN,
         1.2,
         cv::Scalar(255, 255, 255),

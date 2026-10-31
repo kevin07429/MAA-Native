@@ -34,6 +34,18 @@ target_include_directories(HeaderOnlyLibraries INTERFACE 3rdparty/include)
 
 add_subdirectory(src/MaaCore)
 
+option(BUILD_NATIVE_ADAPTIVE_TESTS "Build native layout and ADB protocol regression tests" OFF)
+if(BUILD_NATIVE_ADAPTIVE_TESTS)
+    add_executable(task_pause_tests tools/task-pause-tests.cpp)
+    target_include_directories(task_pause_tests PRIVATE src/MaaCore)
+    add_executable(native_adaptive_tests tools/native-adaptive-tests.cpp src/MaaCore/Controller/adb-lite/protocol.cpp)
+    target_include_directories(native_adaptive_tests PRIVATE src/MaaCore ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(native_adaptive_tests PRIVATE HeaderOnlyLibraries MaaUtils Boost::system ${OpenCV_LIBS})
+    if(WIN32)
+        target_link_libraries(native_adaptive_tests PRIVATE ws2_32)
+    endif()
+endif()
+
 if(BUILD_WPF_GUI)
     add_subdirectory(src/MaaUpdater)
     add_subdirectory(src/MaaAppHostStub)

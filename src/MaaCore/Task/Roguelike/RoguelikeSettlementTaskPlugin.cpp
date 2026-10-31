@@ -43,7 +43,7 @@ bool asst::RoguelikeSettlementTaskPlugin::_run()
         save_img(ctrler()->get_image(), utils::path("achievement") / utils::path("roguelike"), "Page1");
     }
 
-    const auto& rect = Task.get("Roguelike@ClickToStartPoint")->specific_rect;
+    const auto rect = adapt_resource_rect(Task.get("Roguelike@ClickToStartPoint")->specific_rect);
     ctrler()->click(rect);
     sleep(task->pre_delay);
 

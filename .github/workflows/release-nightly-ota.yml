@@ -5,6 +5,11 @@ on:
     - cron: "0 22 * * *" # Runs daily at 22:00 UTC
   workflow_dispatch:
     inputs:
+      native_tag:
+        description: "Native fork version to publish"
+        type: string
+        required: false
+        default: "v6.20.1-native.3"
       release_body:
         description: "Release note"
         type: string
@@ -421,3 +426,12 @@ jobs:
           gh workflow --repo MaaAssistantArknights/MaaRelease run mirrorchyan_alpha_release_note.yml
         env:
           GH_TOKEN: ${{ secrets.MISTEOWORKFLOW }}
+
+  native-release:
+    if: github.repository == 'kevin07429/MAA-Native' && github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/native-release.yml
+    with:
+      version: ${{ inputs.native_tag }}
+    permissions:
+      contents: write
+    secrets: inherit

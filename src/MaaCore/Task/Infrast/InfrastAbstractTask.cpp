@@ -805,7 +805,7 @@ void asst::InfrastAbstractTask::order_opers_selection(const std::vector<std::str
             Log.error("name not in this page", name);
         }
     }
-    sleep(500); // 此处刚刚选择了一位干员，因后续任务需截图识别，所以需要一个延迟，以保证后续截图选中状态无误
+    sleep(250); // The next screenshot and selection review confirm the updated card state.
 }
 
 void asst::InfrastAbstractTask::close_quick_formation_expand_role() const

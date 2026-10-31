@@ -1,7 +1,9 @@
 #include "Matcher.h"
+#include <unordered_map>
 
 #include "MaaUtils/NoWarningCV.hpp"
 
+#include "Config/GeneralConfig.h"
 #include "Config/TaskData.h"
 #include "Config/TemplResource.h"
 #include "MaaUtils/ImageIo.h"
@@ -17,7 +19,12 @@ Matcher::ResultOpt Matcher::analyze() const
     if (m_roi.empty()) {
         return std::nullopt;
     }
-    const auto match_results = preproc_and_match(make_roi(m_image, m_roi), m_params);
+    const auto match_results = preproc_and_match(
+        make_roi(m_image, m_roi),
+        m_params,
+        Config.get_options().native_resolution &&
+            (m_image.cols != WindowWidthDefault || m_image.rows != WindowHeightDefault ||
+             !m_params.native_scales.empty()));
 
     for (size_t i = 0; i < match_results.size(); ++i) {
         const auto& [matched, templ, templ_name, path] = match_results[i];
@@ -94,7 +101,11 @@ Matcher::ResultOpt Matcher::analyze() const
     return std::nullopt;
 }
 
-std::vector<Matcher::RawResult> Matcher::preproc_and_match(const cv::Mat& image, const MatcherConfig::Params& params)
+std::vector<Matcher::RawResult> Matcher::preproc_and_match(
+    const cv::Mat& image,
+    const MatcherConfig::Params& params,
+    bool allow_native_scaling,
+    bool stop_after_match)
 {
     std::vector<Matcher::RawResult> results;
 
@@ -163,6 +174,35 @@ std::vector<Matcher::RawResult> Matcher::preproc_and_match(const cv::Mat& image,
             return {};
         }
 
+        thread_local std::unordered_map<std::string, double> scale_hints;
+        if (allow_native_scaling && !params.native_scales.empty() && !templ_name.empty()) {
+            if (const auto hint = scale_hints.find(templ_name); hint != scale_hints.end()) {
+                cv::Mat scaled;
+                cv::resize(templ, scaled, {}, hint->second, hint->second, cv::INTER_LINEAR);
+                if (scaled.cols <= image.cols && scaled.rows <= image.rows) {
+                    auto probe = params;
+                    probe.templs = { scaled };
+                    probe.templ_thres = { params.templ_thres[i] };
+                    probe.methods = { method };
+                    auto candidates = preproc_and_match(image, probe, false);
+                    if (!candidates.empty()) {
+                        cv::Mat valid;
+                        cv::inRange(candidates.front().matched, 0.0f, 1.0f + 1e-5f, valid);
+                        double score = 0;
+                        cv::minMaxLoc(candidates.front().matched, nullptr, &score, nullptr, nullptr, valid);
+                        if (score >= params.templ_thres[i]) {
+                            candidates.front().templ_name = templ_name;
+                            results.emplace_back(std::move(candidates.front()));
+                            if (stop_after_match) {
+                                return results;
+                            }
+                            continue;
+                        }
+                    }
+                }
+                scale_hints.erase(hint);
+            }
+        }
         cv::Mat matched;
         auto match_path = MatchPath::OpenCV;
         cv::Mat templ_match, templ_count, templ_gray;
@@ -321,6 +361,61 @@ std::vector<Matcher::RawResult> Matcher::preproc_and_match(const cv::Mat& image,
             }
 
             cv::multiply(matched, count_result, matched); // 最终结果是数色和模板匹配的点积
+        }
+        // Wide Android layouts can slightly enlarge UI elements. Retry near misses
+        // with the original confidence threshold and a bounded, nonrecursive search.
+        if (allow_native_scaling && method == MatchMethod::Ccoeff && !params.mask_src && templ.cols >= 12 &&
+            templ.rows >= 12 && !matched.empty()) {
+            const auto score_of = [](const cv::Mat& scores) {
+                cv::Mat valid;
+                cv::inRange(scores, 0.0f, 1.0f + 1e-5f, valid);
+                double score = 0.0;
+                cv::minMaxLoc(scores, nullptr, &score, nullptr, nullptr, valid);
+                return score;
+            };
+            const double threshold = params.templ_thres[i];
+            const double original_score = score_of(matched);
+            if (original_score >= threshold && stop_after_match) {
+                results.emplace_back(
+                    RawResult { .matched = matched, .templ = templ, .templ_name = templ_name, .path = match_path });
+                return results;
+            }
+            if (original_score < threshold &&
+                (!params.native_scales.empty() || original_score >= (std::max)(0.55, threshold - 0.2))) {
+                const std::vector<double> default_scales { 1.05, 0.95, 1.10, 0.90 };
+                const auto& scales = params.native_scales.empty() ? default_scales : params.native_scales;
+                for (double scale : scales) {
+                    if (scale < 0.25 || scale > 4.0) {
+                        continue;
+                    }
+                    cv::Mat scaled;
+                    cv::resize(templ, scaled, {}, scale, scale, cv::INTER_LINEAR);
+                    if (scaled.cols > image.cols || scaled.rows > image.rows) {
+                        continue;
+                    }
+                    auto scaled_params = params;
+                    scaled_params.templs = { scaled };
+                    scaled_params.templ_thres = { threshold };
+                    scaled_params.methods = { method };
+                    auto candidates = preproc_and_match(image, scaled_params, false);
+                    if (!candidates.empty() && score_of(candidates.front().matched) >= threshold) {
+                        auto candidate = std::move(candidates.front());
+                        candidate.templ_name = templ_name;
+                        if (!params.native_scales.empty() && !templ_name.empty()) {
+                            scale_hints[templ_name] = scale;
+                        }
+                        results.emplace_back(std::move(candidate));
+                        LogDebug << "Native template scale matched" << templ_name << scale;
+                        if (stop_after_match) {
+                            return results;
+                        }
+                        break;
+                    }
+                }
+                if (results.size() > i) {
+                    continue;
+                }
+            }
         }
         results.emplace_back(
             RawResult { .matched = matched, .templ = templ, .templ_name = templ_name, .path = match_path });

@@ -8,6 +8,8 @@
 
 #include <meojson/json.hpp>
 
+#include "Assistant.h"
+#include "Common/AdaptiveLayout.h"
 #include "Config/GeneralConfig.h"
 #include "Config/ResourceLoader.h"
 #include "Config/TaskData.h"
@@ -162,6 +164,9 @@ bool ProcessTask::run()
 
     if (m_task_delay == TaskDelayUnsetted) {
         m_task_delay = Config.get_options().task_delay;
+        if (m_task_chain == "Infrast") {
+            m_task_delay = (std::min)(m_task_delay, 80);
+        }
     }
 
     TaskConstPtr cur_task_ptr = nullptr;           // 当前任务，仅用于计算 on_error_next
@@ -169,6 +174,10 @@ bool ProcessTask::run()
     while (true) {
         auto [status /*识别成功与否*/, next_task_ptr /*匹配到的任务*/] = find_and_run_task(to_be_recognized);
         switch (status) {
+        case NodeStatus::Recheck:
+            m_reusable.release();
+            ctrler()->get_image();
+            continue;
         case NodeStatus::RetryFailed:
             // retry 次数达到上限，下一个匹配列表是 on_error_next，若没有则回调 SubTaskError
             if (cur_task_ptr == nullptr || cur_task_ptr->on_error_next.empty()) {
@@ -295,9 +304,16 @@ ProcessTask::HitDetail ProcessTask::find_first(const TaskList& list) /* const, e
 ProcessTask::NodeStatus ProcessTask::run_action(const HitDetail& hits) const
 {
     const auto& task = hits.task_ptr;
+    const auto adapt_fixed_rect = [&](const Rect& rect) {
+        if (!Config.get_options().native_resolution) {
+            return rect;
+        }
+        const auto [width, height] = ctrler()->get_scale_size();
+        return adaptive::fixed_rect(rect, width, height, task->screen_anchor);
+    };
     switch (task->action) {
     case ProcessTaskAction::ClickRect:
-        exec_click_task(task->specific_rect);
+        exec_click_task(adapt_fixed_rect(task->specific_rect));
         return NodeStatus::Success;
     case ProcessTaskAction::ClickSelf: {
         Rect rect = hits.rect;
@@ -316,8 +332,8 @@ ProcessTask::NodeStatus ProcessTask::run_action(const HitDetail& hits) const
         // Warning: 这里的后两个参数 slope_in 和 slope_out 是 double 类型，但是在 json 中是 int 类型
         // specialParams: [duration, extra_swipe 方向(0 不启用, 1/2/3/4 为上/下/左/右), slope_in, slope_out]
         exec_swipe_task(
-            task->specific_rect,
-            task->rect_move,
+            adapt_fixed_rect(task->specific_rect),
+            adapt_fixed_rect(task->rect_move),
             (param_size > 0) ? task->special_params.at(0) : 0,
             (param_size > 1) ? to_swipe_extra_direction(task->special_params.at(1)) : SwipeExtraDirection::None,
             (param_size > 2) ? task->special_params.at(2) / 10.0 : 1,
@@ -378,11 +394,20 @@ ProcessTask::NodeStatus ProcessTask::run_task(const HitDetail& hits)
         return NodeStatus::Interrupted;
     }
 
+    if (inst() && hits.pause_epoch != inst()->pause_epoch()) {
+        --exec_times;
+        return NodeStatus::Recheck;
+    }
+    ctrler()->consume_pause_rejection();
     // 根据任务的 action 执行任务
     if (auto result = run_action(hits); result != NodeStatus::Success) {
         return result;
     }
 
+    if (ctrler()->consume_pause_rejection()) {
+        --exec_times;
+        return NodeStatus::Recheck;
+    }
     status()->set_number(Status::ProcessTaskLastTimePrefix + task_name, time(nullptr));
 
     // 减少其他任务的执行次数
@@ -461,7 +486,9 @@ std::pair<ProcessTask::NodeStatus, TaskConstPtr> ProcessTask::find_and_run_task(
         if (cur_retry != 0 && !sleep(m_task_delay)) {
             return { NodeStatus::Interrupted, nullptr };
         }
+        const auto epoch = inst() ? inst()->pause_epoch() : 0;
         if (hits = find_first(list); hits.task_ptr != nullptr) {
+            hits.pause_epoch = epoch;
             break;
         }
     }
@@ -508,6 +535,10 @@ int ProcessTask::calc_post_delay(TaskConstPtr task) const
         }
         size_t at_pos = task_name.find('@');
         if (at_pos == std::string::npos) {
+            if (m_task_chain == "Infrast" &&
+                (task->name.ends_with("InfrastEnteredFlag") || task->name.ends_with("BackToReceptionMain"))) {
+                return (std::min)(task->post_delay, 800);
+            }
             return task->post_delay;
         }
         task_name = task_name.substr(at_pos + 1);

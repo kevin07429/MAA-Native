@@ -10,6 +10,34 @@
 #include "Assistant.h"
 #include "MaaUtils/NoWarningCV.hpp"
 
+namespace asst
+{
+class TaskIOGuard
+{
+public:
+    explicit TaskIOGuard(Assistant* owner) :
+        m_owner(owner)
+    {
+        if (m_owner) {
+            m_owner->begin_task_io();
+        }
+    }
+
+    ~TaskIOGuard()
+    {
+        if (m_owner) {
+            m_owner->end_task_io();
+        }
+    }
+
+    TaskIOGuard(const TaskIOGuard&) = delete;
+    TaskIOGuard& operator=(const TaskIOGuard&) = delete;
+
+private:
+    Assistant* m_owner;
+};
+}
+
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable: 4068)
@@ -142,6 +170,10 @@ void asst::Controller::sync_params()
 
 bool asst::Controller::back_to_home()
 {
+    if (need_exit()) {
+        return false;
+    }
+    TaskIOGuard task_io(m_inst);
     CHECK_EXIST(m_controller, false);
     m_controller->back_to_home();
     return true;
@@ -164,30 +196,62 @@ cv::Mat asst::Controller::get_resized_image_cache(bool for_preview) const
 
 bool asst::Controller::start_game(const std::string& client_type)
 {
+    if (need_exit()) {
+        return false;
+    }
+    TaskIOGuard task_io(m_inst);
     CHECK_EXIST(m_controller, false);
     return m_controller->start_game(client_type);
 }
 
 bool asst::Controller::stop_game(const std::string& client_type)
 {
+    if (need_exit()) {
+        return false;
+    }
+    TaskIOGuard task_io(m_inst);
     CHECK_EXIST(m_controller, false);
     return m_controller->stop_game(client_type);
 }
 
 bool asst::Controller::click(const Point& p)
 {
+    if (!task_input_checkpoint()) {
+        return false;
+    }
+    TaskIOGuard task_io(m_inst);
     CHECK_EXIST(m_controller, false);
     return m_scale_proxy->click(p);
 }
 
+bool asst::Controller::task_input_checkpoint()
+{
+    if (need_exit()) {
+        return false;
+    }
+    if (m_inst && m_inst->is_task_thread() && m_task_frame_epoch != m_inst->pause_epoch()) {
+        m_pause_rejected = true;
+        return false;
+    }
+    return true;
+}
+
 bool asst::Controller::click(const Rect& rect)
 {
+    if (!task_input_checkpoint()) {
+        return false;
+    }
+    TaskIOGuard task_io(m_inst);
     CHECK_EXIST(m_controller, false);
     return m_scale_proxy->click(rect);
 }
 
 bool asst::Controller::input(const std::string& text)
 {
+    if (!task_input_checkpoint()) {
+        return false;
+    }
+    TaskIOGuard task_io(m_inst);
     CHECK_EXIST(m_controller, false);
     return m_controller->input(text);
 }
@@ -206,6 +270,10 @@ bool asst::Controller::swipe(
     double slope_out,
     bool with_pause)
 {
+    if (!task_input_checkpoint()) {
+        return false;
+    }
+    TaskIOGuard task_io(m_inst);
     CHECK_EXIST(m_controller, false);
     return m_scale_proxy
         ->swipe(p1, p2, duration, extra_swipe, slope_in, slope_out, resolve_swipe_with_pause(with_pause));
@@ -221,6 +289,10 @@ bool asst::Controller::swipe(
     bool with_pause,
     bool high_resolution_swipe_fix)
 {
+    if (!task_input_checkpoint()) {
+        return false;
+    }
+    TaskIOGuard task_io(m_inst);
     CHECK_EXIST(m_controller, false);
     return m_scale_proxy->swipe(
         r1,
@@ -237,13 +309,40 @@ bool asst::Controller::inject_input_event(InputEvent& event)
 {
     // 与 click/swipe 一致必须经 scale proxy，否则任务层的基准坐标未乘分辨率倍率直发设备
     CHECK_EXIST(m_scale_proxy, false);
-    return m_scale_proxy->inject_input_event(event);
+    if (event.type == InputEvent::Type::TOUCH_DOWN && !m_task_gesture_io) {
+        if (!task_input_checkpoint()) {
+            return false;
+        }
+        if (m_inst) {
+            m_inst->begin_task_io();
+        }
+        m_task_gesture_io = true;
+    }
+    const bool result = m_scale_proxy->inject_input_event(event);
+    if (result && event.type == InputEvent::Type::TOUCH_DOWN) {
+        ++m_active_task_pointers;
+    }
+    if (event.type == InputEvent::Type::TOUCH_UP) {
+        m_active_task_pointers = (std::max)(0, m_active_task_pointers - 1);
+    }
+    if (m_task_gesture_io && (!result || (event.type == InputEvent::Type::COMMIT && m_active_task_pointers == 0))) {
+        m_task_gesture_io = false;
+        m_active_task_pointers = 0;
+        if (m_inst) {
+            m_inst->end_task_io();
+        }
+    }
+    return result;
 }
 
 bool asst::Controller::press_esc()
 {
+    if (!task_input_checkpoint()) {
+        return false;
+    }
     LogTraceFunction;
 
+    TaskIOGuard task_io(m_inst);
     CHECK_EXIST(m_controller, false);
     return m_controller->press_esc();
 }
@@ -476,6 +575,10 @@ const std::string& asst::Controller::get_uuid() const
 
 cv::Mat asst::Controller::get_image(bool raw)
 {
+    need_exit();
+    if (m_inst && m_inst->is_task_thread()) {
+        m_task_frame_epoch = m_inst->pause_epoch();
+    }
     if (get_scale_size() == std::pair(0, 0)) {
         Log.error("Unknown image size");
         return {};
@@ -533,6 +636,10 @@ cv::Mat asst::Controller::get_preview_image_cache() const
 
 bool asst::Controller::screencap(bool allow_reconnect)
 {
+    if (need_exit()) {
+        return false;
+    }
+    TaskIOGuard task_io(m_inst);
     CHECK_EXIST(m_controller, false);
     std::unique_lock<std::shared_mutex> image_lock(m_image_mutex);
     if (!m_controller->screencap(m_cache_image, allow_reconnect)) {
@@ -545,6 +652,7 @@ bool asst::Controller::screencap(bool allow_reconnect)
 
 bool asst::Controller::screencap_for_preview(bool allow_reconnect)
 {
+    TaskIOGuard task_io(m_inst);
     CHECK_EXIST(m_controller, false);
     std::unique_lock<std::shared_mutex> image_lock(m_image_mutex);
     // 预览帧不能覆盖识别帧，也不能共享可能被截图后端原地改写的缓冲区。

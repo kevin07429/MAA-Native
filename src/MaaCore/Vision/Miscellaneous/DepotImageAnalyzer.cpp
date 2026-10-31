@@ -2,6 +2,7 @@
 
 #include "MaaUtils/NoWarningCV.hpp"
 
+#include "Config/GeneralConfig.h"
 #include "Config/Miscellaneous/ItemConfig.h"
 #include "Config/TaskData.h"
 #include "Config/TemplResource.h"
@@ -137,6 +138,14 @@ void asst::DepotImageAnalyzer::resize()
 
     m_resized_rect = Task.get("DepotMatchData")->roi;
     cv::Size d_size(m_resized_rect.width, m_resized_rect.height);
+    if (Config.get_options().native_resolution) {
+        const double scale = std::max(
+            static_cast<double>(d_size.width) / m_image.cols,
+            static_cast<double>(d_size.height) / m_image.rows);
+        d_size = { static_cast<int>(m_image.cols * scale), static_cast<int>(m_image.rows * scale) };
+        m_resized_rect.width = d_size.width;
+        m_resized_rect.height = d_size.height;
+    }
     cv::resize(m_image, m_image_resized, d_size, 0, 0, cv::INTER_AREA);
 #ifdef ASST_DEBUG
     cv::resize(m_image_draw, m_image_draw_resized, d_size, 0, 0, cv::INTER_AREA);
@@ -162,9 +171,12 @@ bool asst::DepotImageAnalyzer::analyze_base_rect()
     static constexpr int tm_size = 183 * 720 / 1080;
 
     auto task_ptr = Task.get<MatchTaskInfo>("DepotBaseRect");
-    int x_period = task_ptr->roi.width * m_image_resized.cols / WindowWidthDefault;
-    int y_first = task_ptr->roi.y * m_image_resized.rows / WindowHeightDefault;
-    int y_period = task_ptr->roi.height * m_image_resized.rows / WindowHeightDefault;
+    const auto base = Task.get("DepotMatchData")->roi;
+    const int grid_width = Config.get_options().native_resolution ? base.width : m_image_resized.cols;
+    const int grid_height = Config.get_options().native_resolution ? base.height : m_image_resized.rows;
+    int x_period = task_ptr->roi.width * grid_width / WindowWidthDefault;
+    int y_first = task_ptr->roi.y * grid_height / WindowHeightDefault;
+    int y_period = task_ptr->roi.height * grid_height / WindowHeightDefault;
 
     cv::Mat hist_x;
     cv::Mat resized_gray;
@@ -488,10 +500,8 @@ asst::Rect asst::DepotImageAnalyzer::resize_rect_to_raw_size(const asst::Rect& r
 {
     LogTraceFunction;
 
-    m_resized_rect = Task.get("DepotMatchData")->roi;
-
-    double kx = static_cast<double>(m_image.cols) / m_resized_rect.width;
-    double ky = static_cast<double>(m_image.rows) / m_resized_rect.height;
+    double kx = static_cast<double>(m_image.cols) / m_image_resized.cols;
+    double ky = static_cast<double>(m_image.rows) / m_image_resized.rows;
 
     Rect raw_rect;
     raw_rect.x = static_cast<int>(kx * rect.x);

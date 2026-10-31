@@ -31,6 +31,7 @@ struct DebugConf
 
 struct Options
 {
+    bool native_resolution = false; // Experimental: preserve the native aspect ratio.
     static constexpr int BattleStartTimeoutSecondsMin = 10;
     static constexpr int BattleStartTimeoutSecondsMax = 300;
     static constexpr int BattleStartTimeoutSecondsDefault = 60;

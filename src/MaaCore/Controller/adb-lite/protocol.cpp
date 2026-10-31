@@ -1,5 +1,7 @@
 #include <iomanip>
 #include <iostream>
+#include <boost/asio/read.hpp>
+#include <boost/asio/write.hpp>
 
 #include "protocol.hpp"
 
@@ -29,7 +31,7 @@ static inline std::string host_request(const std::string_view body)
 static inline bool host_response(tcp::socket& socket, std::string& failure)
 {
     std::array<char, 4> header;
-    socket.read_some(boost::asio::buffer(header));
+    boost::asio::read(socket, boost::asio::buffer(header));
     const auto result = std::string_view(header.data(), 4);
     if (result == "OKAY") {
         return true;
@@ -47,13 +49,13 @@ static inline bool host_response(tcp::socket& socket, std::string& failure)
 std::string host_message(tcp::socket& socket)
 {
     std::array<char, 4> header;
-    socket.read_some(boost::asio::buffer(header));
+    boost::asio::read(socket, boost::asio::buffer(header));
     auto remain = std::stoull(std::string(header.data(), 4), nullptr, 16);
 
     std::string message;
-    std::array<char, 1024> buffer;
+    std::array<char, 64 * 1024> buffer;
     while (remain > 0) {
-        const auto length = socket.read_some(boost::asio::buffer(buffer));
+        const auto length = socket.read_some(boost::asio::buffer(buffer.data(), (std::min)(remain, buffer.size())));
         message.append(buffer.data(), length);
         remain -= length;
     }
@@ -64,15 +66,16 @@ std::string host_message(tcp::socket& socket)
 std::string host_data(tcp::socket& socket)
 {
     std::string data;
-    std::array<char, 1024> buffer;
+    std::array<char, 64 * 1024> buffer;
     boost::system::error_code ec;
 
     while (!ec) {
         const auto length = socket.read_some(boost::asio::buffer(buffer), ec);
+        data.append(buffer.data(), length);
         if (ec == boost::asio::error::eof) {
             break;
         }
-        data.append(buffer.data(), length);
+        if (ec) throw boost::system::system_error(ec);
     }
 
     return data;
@@ -93,15 +96,18 @@ std::string sync_request(const std::string_view id, const uint32_t length)
 void sync_response(tcp::socket& socket, std::string& id, uint32_t& length)
 {
     std::array<char, 8> response;
-    socket.read_some(boost::asio::buffer(response));
+    boost::asio::read(socket, boost::asio::buffer(response));
 
     id = std::string(response.data(), 4);
-    length = response[4] | (response[5] << 8) | (response[6] << 16) | (response[7] << 24);
+    length = static_cast<uint32_t>(static_cast<unsigned char>(response[4])) |
+             (static_cast<uint32_t>(static_cast<unsigned char>(response[5])) << 8) |
+             (static_cast<uint32_t>(static_cast<unsigned char>(response[6])) << 16) |
+             (static_cast<uint32_t>(static_cast<unsigned char>(response[7])) << 24);
 }
 
 void send_host_request(tcp::socket& socket, const std::string_view request)
 {
-    socket.write_some(boost::asio::buffer(protocol::host_request(request)));
+    boost::asio::write(socket, boost::asio::buffer(protocol::host_request(request)));
     std::string failure;
     if (!protocol::host_response(socket, failure)) {
         throw std::runtime_error(failure);
@@ -111,7 +117,7 @@ void send_host_request(tcp::socket& socket, const std::string_view request)
 void send_sync_request(tcp::socket& socket, const std::string_view id, uint32_t length, const char* body)
 {
     auto data_request = protocol::sync_request(id, length);
-    socket.write_some(boost::asio::buffer(data_request));
-    socket.write_some(boost::asio::buffer(body, length));
+    boost::asio::write(socket, boost::asio::buffer(data_request));
+    boost::asio::write(socket, boost::asio::buffer(body, length));
 }
 } // namespace adb::protocol

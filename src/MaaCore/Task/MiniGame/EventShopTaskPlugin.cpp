@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "Common/AdaptiveLayout.h"
+#include "Config/GeneralConfig.h"
 #include "Config/Miscellaneous/OcrConfig.h"
 #include "Config/TaskData.h"
 #include "Controller/Controller.h"
@@ -118,10 +120,13 @@ std::optional<std::string>
     }
 
     const Rect raw_roi = commodity.move(name_task->rect_move);
-    const int left = std::max({ raw_roi.x, name_task->roi.x, 0 });
-    const int top = std::max({ raw_roi.y, name_task->roi.y, 0 });
-    const int right = std::min({ raw_roi.x + raw_roi.width, name_task->roi.x + name_task->roi.width, image.cols });
-    const int bottom = std::min({ raw_roi.y + raw_roi.height, name_task->roi.y + name_task->roi.height, image.rows });
+    const Rect search = Config.get_options().native_resolution
+                            ? adaptive::search_rect(name_task->roi, image.cols, image.rows)
+                            : name_task->roi;
+    const int left = std::max({ raw_roi.x, search.x, 0 });
+    const int top = std::max({ raw_roi.y, search.y, 0 });
+    const int right = std::min({ raw_roi.x + raw_roi.width, search.x + search.width, image.cols });
+    const int bottom = std::min({ raw_roi.y + raw_roi.height, search.y + search.height, image.rows });
     if (right <= left || bottom <= top) {
         LogError << "Event shop product name OCR region is invalid:" << raw_roi;
         return std::nullopt;

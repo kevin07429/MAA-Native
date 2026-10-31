@@ -8,6 +8,7 @@
 #include "Config/TaskData.h"
 #include "Utils/Logger.hpp"
 #include "Vision/MultiMatcher.h"
+#include "Vision/OCRer.h"
 
 bool asst::InfrastFacilityImageAnalyzer::analyze()
 {
@@ -42,6 +43,8 @@ bool asst::InfrastFacilityImageAnalyzer::analyze()
         if (cor_suffix_index >= 0) {
             MultiMatcher mm_analyzer(m_image);
             mm_analyzer.set_task_info(task_name + task_name_suffix.at(cor_suffix_index));
+            mm_analyzer.set_native_scales(
+                { 0.875, 1.225, 0.75, 0.8, 0.85, 0.9, 0.925, 0.95, 1.05, 1.1, 1.15, 1.2, 1.25 });
             if (!mm_analyzer.analyze()) {
                 continue;
             }
@@ -52,6 +55,8 @@ bool asst::InfrastFacilityImageAnalyzer::analyze()
             for (size_t i = 0; i != task_name_suffix.size(); ++i) {
                 MultiMatcher mm_analyzer(m_image);
                 mm_analyzer.set_task_info(task_name + task_name_suffix.at(i));
+                mm_analyzer.set_native_scales(
+                    { 0.875, 1.225, 0.75, 0.8, 0.85, 0.9, 0.925, 0.95, 1.05, 1.1, 1.15, 1.2, 1.25 });
                 if (!mm_analyzer.analyze()) {
                     continue;
                 }
@@ -70,7 +75,28 @@ bool asst::InfrastFacilityImageAnalyzer::analyze()
             }
         }
         if (cur_facility_result.empty()) {
-            continue;
+            // Only use room labels on a verified base overview. This avoids
+            // treating the room header or a blurred exit dialog as a facility.
+            const auto overview = Task.get<OcrTaskInfo>("NativeInfrastOverview");
+            const auto label = Task.get<OcrTaskInfo>("NativeInfrastFacility" + key);
+            if (!overview || !label) {
+                continue;
+            }
+            OCRer overview_analyzer(m_image);
+            overview_analyzer.set_task_info(overview);
+            if (!overview_analyzer.analyze()) {
+                continue;
+            }
+            OCRer label_analyzer(m_image);
+            label_analyzer.set_task_info(label);
+            const auto labels = label_analyzer.analyze();
+            if (!labels) {
+                continue;
+            }
+            for (const auto& result : *labels) {
+                cur_facility_result.emplace_back(result.rect, result.score, std::string {});
+            }
+            LogInfo << __FUNCTION__ << "facility label fallback" << key << cur_facility_result.size();
         }
 
         sort_by_horizontal_(cur_facility_result);

@@ -78,7 +78,7 @@ bool asst::OperBoxImageAnalyzer::opers_analyze()
                                    const battle::Role role) -> std::optional<std::vector<OperResult>> {
         MultiMatcher matcher(m_image);
         matcher.set_task_info(task);
-        matcher.set_roi(roi);
+        matcher.set_task_roi(roi);
         if (!matcher.analyze()) {
             return std::nullopt;
         }

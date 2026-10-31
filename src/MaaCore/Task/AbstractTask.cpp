@@ -11,6 +11,7 @@
 
 #include "AbstractTaskPlugin.h"
 #include "Assistant.h"
+#include "Common/AdaptiveLayout.h"
 #include "Config/GeneralConfig.h"
 #include "Controller/Controller.h"
 #include "MaaUtils/ImageIo.h"
@@ -20,6 +21,15 @@
 #include "Utils/StringMisc.hpp"
 
 using namespace asst;
+
+Rect AbstractTask::adapt_resource_rect(const Rect& rect, std::string_view anchor) const
+{
+    if (!Config.get_options().native_resolution) {
+        return rect;
+    }
+    const auto [width, height] = ctrler()->get_scale_size();
+    return adaptive::fixed_rect(rect, width, height, anchor);
+}
 
 AbstractTask::AbstractTask(const AsstCallback& callback, Assistant* inst, std::string_view task_chain) :
     InstHelper(inst),

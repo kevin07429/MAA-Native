@@ -720,7 +720,7 @@ void asst::RoguelikeRecruitTaskPlugin::slowly_swipe(bool to_left, int swipe_dist
         swipe_dist = -swipe_dist;
     }
     auto swipe_task = Task.get(swipe_task_name);
-    const Rect& StartPoint = swipe_task->specific_rect;
+    const Rect StartPoint = adapt_resource_rect(swipe_task->specific_rect, swipe_task->screen_anchor);
     ctrler()->swipe(
         StartPoint,
         { StartPoint.x + swipe_dist - StartPoint.width, StartPoint.y, StartPoint.width, StartPoint.height },

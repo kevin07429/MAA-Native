@@ -338,9 +338,14 @@ NodeDetectionResult NodeDetector::detect(const cv::Mat& image, int rows, int col
     if (!baseline) {
         throw std::invalid_argument("No fixed grid is defined for the requested floor dimensions");
     }
-    output.seed_grid = *baseline;
+    const int dx = image.cols - 1280;
+    const int dy = image.rows - 720;
+    output.seed_grid = translate_grid(*baseline, dx / 2.0, dy / 2.0);
 
-    const cv::Rect map_roi = m_config.map_roi & cv::Rect(0, 0, image.cols, image.rows);
+    auto search_roi = m_config.map_roi;
+    search_roi.width += std::max(0, dx);
+    search_roi.height += std::max(0, dy);
+    const cv::Rect map_roi = search_roi & cv::Rect(0, 0, image.cols, image.rows);
     const RecognitionScoreAtlas atlas = m_bridge.build_score_atlas(image, map_roi);
     const std::vector<TemplateHit> empty_hits = m_bridge.query_multi(
         atlas,

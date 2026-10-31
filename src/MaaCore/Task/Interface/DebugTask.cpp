@@ -7,6 +7,7 @@
 
 #include "Common/AsstMsg.h"
 #include "Common/AsstTypes.h"
+#include "Config/GeneralConfig.h"
 #include "Config/TaskData.h"
 #include "Config/TemplResource.h"
 #include "MaaUtils/ImageIo.h"
@@ -16,13 +17,19 @@
 #include "Vision/Battle/BattlefieldMatcher.h"
 #include "Vision/BestMatcher.h"
 #include "Vision/FeatureMatcher.h"
+#include "Vision/Infrast/InfrastClueVacancyImageAnalyzer.h"
+#include "Vision/Infrast/InfrastFacilityImageAnalyzer.h"
+#include "Vision/Infrast/InfrastOperImageAnalyzer.h"
 #include "Vision/Matcher.h"
 #include "Vision/Miscellaneous/DepotImageAnalyzer.h"
 #include "Vision/Miscellaneous/PipelineAnalyzer.h"
+#include "Vision/Miscellaneous/RecruitImageAnalyzer.h"
 #include "Vision/Miscellaneous/StageDropsImageAnalyzer.h"
 #include "Vision/MultiMatcher.h"
 #include "Vision/OCRer.h"
 #include "Vision/RegionOCRer.h"
+#include "Vision/Roguelike/BlackFlow/FrameNormalizer.h"
+#include "Vision/Roguelike/RoguelikeEncounterOptionAnalyzer.h"
 
 asst::DebugTask::DebugTask(const AsstCallback& callback, Assistant* inst) :
     InterfaceTask(callback, inst, TaskType)
@@ -33,6 +40,10 @@ bool asst::DebugTask::run()
 {
     // PackageTask::run 被覆盖，运行标记须自行置位，set_params 据此拒绝运行中更新
     m_running = true;
+
+    if (m_image_test_mode == "vision") {
+        return image_test_vision();
+    }
 
     if (m_image_test_mode == "report") {
         return image_test_report();
@@ -49,7 +60,7 @@ bool asst::DebugTask::run()
     return true;
 }
 
-// 读取本地图片并缩放到 1280x720（INTER_AREA），与线上 Controller::get_resized_image_cache 一致；
+// Match the controller canvas, preserving aspect ratio in native mode.
 // 需要其他评估尺寸（如仓库识别的 1066x599）的先经此归一，再用 resize_eval_image 二级缩放
 std::optional<cv::Mat> asst::DebugTask::load_eval_image(const std::string& utf8_path)
 {
@@ -57,6 +68,14 @@ std::optional<cv::Mat> asst::DebugTask::load_eval_image(const std::string& utf8_
     if (image.empty()) {
         LogError << __FUNCTION__ << "failed to load image:" << utf8_path;
         return std::nullopt;
+    }
+    if (Config.get_options().native_resolution) {
+        const double scale = (std::max)(1280.0 / image.cols, 720.0 / image.rows);
+        const cv::Size canvas(static_cast<int>(image.cols * scale), static_cast<int>(image.rows * scale));
+        if (image.size() != canvas) {
+            cv::resize(image, image, canvas, 0, 0, cv::INTER_AREA);
+        }
+        return image;
     }
     if (image.cols * 9 != image.rows * 16) {
         // 线上遇到非 16:9 截图会直接报 Unsupported resolution，这里拉伸后仍可评估，
@@ -161,7 +180,20 @@ bool asst::DebugTask::set_params_impl(const json::value& params)
     }
     images = std::move(*images_opt);
 
-    if (mode == "report" || mode == "pipeline") {
+    if (mode == "vision") {
+        auto tasks_opt = params.find<std::vector<std::string>>("tasks");
+        if (!tasks_opt || tasks_opt->empty()) {
+            return false;
+        }
+        for (const auto& name : *tasks_opt) {
+            if (name != "Facilities" && name != "InfrastOpers" && name != "Recruit" && name != "Battle" &&
+                name != "Normalize" && name != "EncounterJieGarden" && name != "ClueVacancies") {
+                return false;
+            }
+        }
+        tasks = std::move(*tasks_opt);
+    }
+    else if (mode == "report" || mode == "pipeline") {
         auto tasks_opt = params.find<std::vector<std::string>>("tasks");
         if (!tasks_opt || tasks_opt->empty()) {
             LogError << __FUNCTION__ << "failed, tasks not found";
@@ -244,6 +276,118 @@ void asst::DebugTask::emit_eval_error(const std::string& mode, const std::string
         AsstMsg::SubTaskExtraInfo,
         json::object { { "what", "DebugImageTest" },
                        { "details", json::object { { "mode", mode }, { "image", image_path }, { "error", error } } } });
+}
+
+bool asst::DebugTask::image_test_vision()
+{
+    bool all_ok = true;
+    for (const auto& path : m_eval_images) {
+        const auto frame = load_eval_image(path);
+        if (!frame) {
+            all_ok = false;
+            emit_eval_error("vision", path, "Failed to load frame");
+            continue;
+        }
+        json::array results;
+        for (const auto& name : m_eval_tasks) {
+            json::object result { { "analyzer", name } };
+            if (name == "Normalize") {
+                blackflow::perception::FrameNormalizer normalizer;
+                blackflow::perception::FrameNormalizationInfo info;
+                cv::Mat output;
+                std::string error;
+                result["hit"] = normalizer.normalize(*frame, output, info, error);
+                result["width"] = info.normalized_width;
+                result["height"] = info.normalized_height;
+                result["error"] = error;
+            }
+            else if (name == "Facilities") {
+                InfrastFacilityImageAnalyzer analyzer(*frame);
+                analyzer.set_to_be_analyzed(
+                    { "Reception", "Office", "Control", "Mfg", "Trade", "Power", "Dorm", "Processing", "Training" });
+                result["hit"] = analyzer.analyze();
+                json::object facilities;
+                for (const auto& [facility, matches] : analyzer.get_result()) {
+                    json::array rects;
+                    for (const auto& match : matches) {
+                        rects.emplace_back((json::value)match.rect);
+                    }
+                    facilities[facility] = std::move(rects);
+                }
+                result["facilities"] = std::move(facilities);
+            }
+            else if (name == "InfrastOpers") {
+                InfrastOperImageAnalyzer analyzer(*frame);
+                analyzer.set_to_be_calced(InfrastOperImageAnalyzer::Selected);
+                result["hit"] = analyzer.analyze();
+                json::array rects;
+                for (const auto& oper : analyzer.get_result()) {
+                    rects.emplace_back((json::value)oper.rect);
+                }
+                result["operators"] = std::move(rects);
+            }
+            else if (name == "Recruit") {
+                RecruitImageAnalyzer analyzer(*frame);
+                result["hit"] = analyzer.analyze();
+                json::array tags;
+                for (const auto& tag : analyzer.get_tags_result()) {
+                    tags.emplace_back(tag.text);
+                }
+                result["tags"] = std::move(tags);
+            }
+            else if (name == "ClueVacancies") {
+                InfrastClueVacancyImageAnalyzer analyzer(*frame);
+                analyzer.set_to_be_analyzed({ "No1", "No2", "No3", "No4", "No5", "No6", "No7" });
+                result["hit"] = analyzer.analyze();
+                json::array vacancies;
+                for (const auto& [id, rect] : analyzer.get_vacancy()) {
+                    vacancies.emplace_back(id);
+                }
+                result["vacancies"] = std::move(vacancies);
+            }
+            else if (name == "EncounterJieGarden") {
+                RoguelikeEncounterOptionAnalyzer analyzer(*frame);
+                analyzer.set_theme("JieGarden");
+                const auto merge_offset = analyzer.merge_image(*frame);
+                result["merge_offset"] = merge_offset.value_or(-1);
+                result["hit"] = analyzer.analyze();
+                json::array options;
+                for (const auto& option : analyzer.get_result()) {
+                    const auto match =
+                        RoguelikeEncounterOptionAnalyzer::match_option("JieGarden", *frame, option.templ);
+                    options.emplace_back(
+                        json::object {
+                            { "text", option.text },
+                            { "enabled", option.enabled },
+                            { "located", match.has_value() },
+                            { "rect", match ? (json::value)match->rect : json::array {} },
+                        });
+                }
+                result["options"] = std::move(options);
+            }
+            else if (name == "Battle") {
+                BattlefieldMatcher analyzer(*frame);
+                analyzer.set_object_of_interest({ .deployment = true });
+                const auto match = analyzer.analyze();
+                result["hit"] = match.has_value();
+                if (match) {
+                    result["pause_button"] = match->pause_button;
+                    result["operators"] = static_cast<int>(match->deployment.size());
+                }
+            }
+            results.emplace_back(std::move(result));
+        }
+        callback(
+            AsstMsg::SubTaskExtraInfo,
+            json::object { { "what", "DebugImageTest" },
+                           { "details",
+                             json::object { { "mode", "vision" },
+                                            { "image", path },
+                                            { "width", frame->cols },
+                                            { "height", frame->rows },
+                                            { "results", std::move(results) } } } });
+    }
+    return all_ok;
 }
 
 bool asst::DebugTask::image_test_report()

@@ -161,7 +161,7 @@ public:
             set_error(error, "swipe task is missing: " + std::string(task_name));
             return false;
         }
-        const Rect& start = task->specific_rect;
+        const Rect start = adapt_resource_rect(task->specific_rect, task->screen_anchor);
         const Rect end { start.x + distance, start.y, start.width, start.height };
         const auto& params = task->special_params;
         const bool swiped = ctrler()->swipe(

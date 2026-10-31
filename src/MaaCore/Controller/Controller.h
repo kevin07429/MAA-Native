@@ -7,6 +7,7 @@
 #include <shared_mutex>
 #include <string>
 #include <thread>
+#include <utility>
 
 #ifdef _WIN32
 #include "Platform/Win32IO.h"
@@ -77,6 +78,9 @@ public:
     bool stop_game(const std::string& client_type);
 
     bool click(const Point& p);
+
+    bool consume_pause_rejection() { return std::exchange(m_pause_rejected, false); }
+
     bool click(const Rect& rect);
     bool input(const std::string& text);
 
@@ -111,6 +115,11 @@ public:
     bool back_to_home();
 
 private:
+    bool task_input_checkpoint();
+    uint64_t m_task_frame_epoch = 0;
+    bool m_pause_rejected = false;
+    int m_active_task_pointers = 0;
+    bool m_task_gesture_io = false;
     cv::Mat get_resized_image_cache(bool for_preview = false) const;
 
     void clear_info() noexcept;

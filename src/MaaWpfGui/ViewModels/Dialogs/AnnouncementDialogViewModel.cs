@@ -1,4 +1,4 @@
-// <copyright file="AnnouncementDialogViewModel.cs" company="MaaAssistantArknights">
+﻿// <copyright file="AnnouncementDialogViewModel.cs" company="MaaAssistantArknights">
 // Part of the MaaWpfGui project, maintained by the MaaAssistantArknights team (Maa Team)
 // Copyright (C) 2021-2026 MaaAssistantArknights Contributors
 //
@@ -218,47 +218,9 @@ public class AnnouncementDialogViewModel : Screen
     /// 检查更新
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public async Task CheckAndDownloadAnnouncement()
+    public Task CheckAndDownloadAnnouncement()
     {
-        string path = "announcements/wpf";
-        if (SettingsViewModel.GuiSettings.Language is not ("zh-cn" or "zh-tw"))
-        {
-            path += "_en";
-        }
-
-        string url = MaaUrls.MaaApi + path + ".md";
-
-        using var response = await ETagCache.FetchResponseWithEtag(url, string.IsNullOrEmpty(AnnouncementInfo));
-
-        if (response == null ||
-            response.StatusCode == System.Net.HttpStatusCode.NotModified ||
-            response.StatusCode != System.Net.HttpStatusCode.OK)
-        {
-            return;
-        }
-
-        var body = await HttpResponseHelper.GetStringAsync(response);
-        if (!string.IsNullOrEmpty(body) && AnnouncementInfo != body)
-        {
-            /*
-            const string Template =
-                "----------- OLD -----------\n" +
-                "{AnnouncementInfo}\n" +
-                "---------------------------\n\n" +
-                "=========== NEW ===========\n" +
-                "{Body}\n" +
-                "===========================";
-            _logger.Information(Template,
-                AnnouncementInfo,
-                body);
-            */
-            _logger.Information("{Body}", body);
-            AnnouncementInfo = body;
-            DoNotRemindThisAnnouncementAgain = false;
-        }
-
-        ETagCache.Set(response, url);
-        ETagCache.Save();
+        return Task.CompletedTask;
     }
 
     private int _notFinishedClick = 0;

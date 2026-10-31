@@ -24,7 +24,7 @@ public:
     const auto& get_result() const noexcept { return m_result; }
 
 protected:
-    virtual void _set_roi(const Rect& roi) override { set_roi(roi); }
+    virtual void _set_roi(const Rect& roi) override { set_task_roi(roi); }
 
     // Not working for OCR with detection
     using OCRerConfig::set_bin_expansion;

@@ -1,4 +1,5 @@
 #include "ControlScaleProxy.h"
+#include "ClickTarget.h"
 
 #include "Config/GeneralConfig.h"
 #include "Utils/Logger.hpp"
@@ -25,13 +26,15 @@ asst::ControlScaleProxy::ControlScaleProxy(
         },
     } };
 
-    if (width < WindowWidthDefault || height < WindowHeightDefault) {
+    if (width <= 0 || height <= 0 ||
+        (!Config.get_options().native_resolution && (width < WindowWidthDefault || height < WindowHeightDefault))) {
         info["what"] = "UnsupportedResolution";
         info["why"] = "Low screen resolution";
         callback(info);
         throw std::runtime_error("Unsupported resolution");
     }
     else if (
+        !Config.get_options().native_resolution &&
         std::fabs(
             static_cast<double>(WindowWidthDefault) / static_cast<double>(WindowHeightDefault) -
             static_cast<double>(width) / static_cast<double>(height)) > 1e-7) {
@@ -74,6 +77,15 @@ bool asst::ControlScaleProxy::click(const Point& p)
 
 bool asst::ControlScaleProxy::click(const Rect& rect)
 {
+    if (Config.get_options().native_resolution && m_scale_size != std::pair(WindowWidthDefault, WindowHeightDefault)) {
+        const auto point = native_click_target(rect, m_scale_size.first, m_scale_size.second);
+        if (!point) {
+            LogWarn << "Native click target outside current image" << rect << m_scale_size.first << m_scale_size.second;
+            return false;
+        }
+        LogDebug << "Native centered click" << rect << *point;
+        return click(*point);
+    }
     return click(rand_point_in_rect(rect));
 }
 

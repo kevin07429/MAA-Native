@@ -69,7 +69,7 @@ public:
         match_option(const std::string& theme, const cv::Mat& image, const cv::Mat& option_templ);
 
     // match_option 的搜索范围，高度随图像高度伸缩。
-    [[nodiscard]] static Rect option_roi(const std::string& theme, int image_rows);
+    [[nodiscard]] static Rect option_roi(const std::string& theme, int image_rows, int image_cols = WindowWidthDefault);
 
     using VisionHelper::save_img;
 

@@ -22,6 +22,7 @@ using TaskPluginPtr = std::shared_ptr<AbstractTaskPlugin>;
 class Controller;
 class Status;
 class TaskData;
+struct Rect;
 
 class AbstractTask : protected InstHelper
 {
@@ -92,6 +93,8 @@ protected:
 
     virtual void callback(AsstMsg msg, const json::value& detail);
     virtual void click_return_button();
+    // Convert resource coordinates only; recognition results are already in the current canvas.
+    Rect adapt_resource_rect(const Rect& rect, std::string_view anchor = "auto") const;
     bool save_img(
         const std::filesystem::path& relative_dir = utils::path("debug"),
         bool use_cache = true,

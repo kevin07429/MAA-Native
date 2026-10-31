@@ -112,7 +112,7 @@ std::optional<asst::InfrastTrainingTask::TrainingStatus> asst::InfrastTrainingTa
         m_skill_name = skill_str.substr(separation_pos + 1);
     }
 
-    Rect roi = Task.get("InfrastTrainingSkillImg")->roi;
+    Rect roi = adapt_resource_rect(Task.get("InfrastTrainingSkillImg")->roi);
     m_skill_img = image(make_rect<cv::Rect>(roi));
 
     // TODO: 根据角色职业增加换班功能

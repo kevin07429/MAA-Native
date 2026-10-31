@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="MaaWpfGui.Views.UserControl.GuideUserControl"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -720,90 +720,8 @@
                                     Margin="10"
                                     Orientation="Vertical"
                                     Spacing="12">
-                                    <!--  官网/文档位置  -->
-                                    <StackPanel>
-                                        <controls:TextBlock
-                                            FontSize="14"
-                                            FontWeight="SemiBold"
-                                            Text="{DynamicResource GuideDocumentationTitle}"
-                                            TextWrapping="Wrap" />
-                                        <controls:TextBlock
-                                            Margin="0,2.5"
-                                            HorizontalAlignment="Left"
-                                            FontSize="13"
-                                            Text="{DynamicResource GuideDocumentationPath}"
-                                            TextWrapping="Wrap" />
-                                    </StackPanel>
-
-                                    <Separator />
-
-                                    <!--  问题反馈  -->
-                                    <StackPanel>
-                                        <controls:TextBlock
-                                            FontSize="14"
-                                            FontWeight="SemiBold"
-                                            Text="{DynamicResource GuideIssueReportSubtitle}"
-                                            TextWrapping="Wrap" />
-
-                                        <!--  查看日志  -->
-                                        <controls:TextBlock
-                                            Margin="0,2.5"
-                                            HorizontalAlignment="Left"
-                                            FontSize="13"
-                                            Text="{DynamicResource GuideViewLog}"
-                                            TextWrapping="Wrap" />
-
-                                        <!--  生成报告  -->
-                                        <controls:TextBlock
-                                            Margin="0,2.5"
-                                            HorizontalAlignment="Left"
-                                            FontSize="13"
-                                            Text="{DynamicResource GuideGenerateReport}"
-                                            TextWrapping="Wrap" />
-                                    </StackPanel>
-
-                                    <Separator />
-
-                                    <!--  GitHub 反馈规范  -->
-                                    <StackPanel>
-                                        <controls:TextBlock
-                                            FontSize="14"
-                                            FontWeight="SemiBold"
-                                            Text="{DynamicResource GuideGitHubIssueTitle}"
-                                            TextWrapping="Wrap" />
-                                        <controls:TextBlock
-                                            Margin="0,2.5"
-                                            HorizontalAlignment="Left"
-                                            FontSize="13"
-                                            Text="{DynamicResource GuideGitHubIssueDescription}"
-                                            TextWrapping="Wrap" />
-                                    </StackPanel>
-
-                                    <Separator />
-
-                                    <!--  开源项目参与  -->
-                                    <StackPanel>
-                                        <controls:TextBlock
-                                            FontSize="14"
-                                            FontWeight="SemiBold"
-                                            Text="{DynamicResource GuideOpenSourceTitle}"
-                                            TextWrapping="Wrap" />
-                                        <controls:TextBlock
-                                            Margin="0,2.5"
-                                            HorizontalAlignment="Left"
-                                            FontSize="13"
-                                            Text="{DynamicResource GuideOpenSourceDescription}"
-                                            TextWrapping="Wrap" />
-                                    </StackPanel>
-
-                                    <Separator />
-
-                                    <StackPanel>
-                                        <controls:TextBlock
-                                            HorizontalAlignment="Center"
-                                            Text="{DynamicResource GuideUserAgreement}"
-                                            TextWrapping="Wrap" />
-                                    </StackPanel>
+                                    <controls:TextBlock Text="{DynamicResource NativeEditionInfo}" TextWrapping="Wrap" />
+                                    <controls:TextBlock Text="{DynamicResource GuideViewLog}" TextWrapping="Wrap" />
                                 </hc:UniformSpacingPanel>
                             </ScrollViewer>
                         </hc:TransitioningContentControl>

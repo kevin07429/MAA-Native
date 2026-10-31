@@ -134,6 +134,7 @@ Assistant::~Assistant()
 
     m_thread_exit = true;
     m_thread_idle = true;
+    m_pause_gate.resume();
 
     {
         std::unique_lock<std::mutex> lock(m_call_mutex);
@@ -522,6 +523,7 @@ bool asst::Assistant::start(bool block)
     }
     m_thread_idle = false;
     m_running = true;
+    m_pause_gate.resume();
     m_condvar.notify_one();
 
     return true;
@@ -533,6 +535,7 @@ bool Assistant::stop(bool block)
     Log.info("Stop |", block ? "block" : "non block");
 
     m_thread_idle = true;
+    m_pause_gate.resume();
 
     std::unique_lock<std::mutex> lock;
     if (block) { // 外部调用
@@ -542,6 +545,29 @@ bool Assistant::stop(bool block)
 
     clear_cache();
     return true;
+}
+
+bool asst::Assistant::need_exit() const
+{
+    if (is_task_thread() && !m_thread_idle && !m_thread_exit) {
+        m_pause_gate.checkpoint();
+    }
+    return m_thread_exit || (m_thread_idle && m_running);
+}
+
+bool asst::Assistant::pause()
+{
+    if (!m_running || m_thread_idle) {
+        return false;
+    }
+    m_pause_gate.pause();
+    return true;
+}
+
+bool asst::Assistant::resume()
+{
+    m_pause_gate.resume();
+    return m_running && !m_thread_idle;
 }
 
 bool asst::Assistant::running() const
