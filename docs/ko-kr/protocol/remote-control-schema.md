@@ -7,12 +7,12 @@ icon: mdi:remote-desktop
 
 MAA를 원격으로 제어하려면 http(s) 서비스를 제공해야 합니다. 이 서비스는 아래 두 가지 익명 엔드포인트(Endpoint)를 제공해야 하며, 두 엔드포인트는 http(s) 프로토콜의 Web 엔드포인트여야 합니다.
 
-::: warning
-엔드포인트가 http 프로토콜인 경우 MAA는 연결 시마다 '안전하지 않음' 경고를 표시합니다. **공개 네트워크에 평문 전송 서비스를 배포하는 것은 매우 위험하므로 권장하지 않습니다. 테스트 용도로만 사용해 주세요.**
+::: warning  
+엔드포인트가 http 프로토콜인 경우 MAA는 연결 시마다 '안전하지 않음' 경고를 표시합니다. **공개 네트워크에 평문 전송 서비스를 배포하는 것은 매우 위험하므로 권장하지 않습니다. 테스트 용도로만 사용해 주세요.**  
 :::
 
-::: tip
-주의: JSON 파일은 주석을 지원하지 않으므로 아래의 예시에서 주석은 제거하고 사용해 주세요.
+::: tip  
+주의: JSON 파일은 주석을 지원하지 않으므로 아래의 예시에서 주석은 제거하고 사용해 주세요.  
 :::
 
 ## 작업 획득 엔드포인트 (Get Task)
@@ -55,7 +55,7 @@ MAA는 이 엔드포인트를 고정 간격으로 지속적으로 폴링하여(�
         },
         {
             "id": "b353c469-b902-4357-bd8f-d133199eea31",   // 작업의 고유 ID
-            "type": "Toolbox-GachaOnce",                    // 툴박스의 1회 뽑기 작업. 선택 가능 값: Toolbox-GachaOnce, Toolbox-GachaTenTimes
+            "type": "Toolbox-GachaOnce",                    // 툴박스 작업. 선택 가능 값: Toolbox-GachaOnce, Toolbox-GachaTenTimes, Toolbox-Reclamation (생존 연산)
         },
         {
             "id": "b353c469-b902-4357-bd8f-d133199eea31",   // 작업의 고유 ID
@@ -86,7 +86,7 @@ MAA는 이 엔드포인트를 고정 간격으로 지속적으로 폴링하여(�
 ::: note
 
 - **LinkStart-[TaskName]** 유형의 `type` 선택 가능 값:
-  `LinkStart-Base`, `LinkStart-WakeUp`, `LinkStart-Combat`, `LinkStart-Recruiting`, `LinkStart-Mall`, `LinkStart-Mission`, `LinkStart-AutoRoguelike`, `LinkStart-Reclamation`
+  `LinkStart-Base`, `LinkStart-WakeUp`, `LinkStart-Combat`, `LinkStart-Recruiting`, `LinkStart-Mall`, `LinkStart-Mission`, `LinkStart-AutoRoguelike`; `LinkStart-Reclamation` 은 구버전 호환용 별칭으로 `Toolbox-Reclamation` 과 동등
 - **Settings-[SettingsName]** 유형의 `type` 선택 가능 값:
   `Settings-ConnectAddress`, `Settings-Stage1`
 - **Settings** 시리즈 작업은 순차 실행 작업으로 간주되어, 수신 즉시 실행되지 않고 이전 작업이 끝난 뒤 실행됩니다.

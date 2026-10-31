@@ -7,12 +7,12 @@ icon: material-symbols:task
 
 Usage of `resource/tasks` and description of each field
 
-::: tip
-It is recommended to use [Visual Studio Code](https://code.visualstudio.com/) and install [Maa Pipeline Support](https://marketplace.visualstudio.com/items?itemName=nekosu.maa-support) extension for efficient editing. For more details, please visit the extension's homepage and the [docs](../develop/vsc-ext-tutorial.md).
+::: tip  
+It is recommended to use [Visual Studio Code](https://code.visualstudio.com/) and install [Maa Pipeline Support](https://marketplace.visualstudio.com/items?itemName=nekosu.maa-support) extension for efficient editing. For more details, please visit the extension's homepage and the [docs](../develop/vsc-ext-tutorial.md).  
 :::
 
-::: warning
-Please note that JSON files do not support comments. The comments in this document are for demonstration purposes only. Do not copy them directly into your JSON files.
+::: warning  
+Please note that JSON files do not support comments. The comments in this document are for demonstration purposes only. Do not copy them directly into your JSON files.  
 :::
 
 ## Complete Field Reference
@@ -55,6 +55,7 @@ Please note that JSON files do not support comments. The comments in this docume
                                             // For identical tasks, second recognition won't occur after first:
                                             //     "next": [ "A", "B", "A", "A" ] -> "next": [ "A", "B" ]
                                             // JustReturn type tasks must not be in non-last positions
+                                            // If the list contains undefined task names, an UnknownTask error is reported back before recognition starts and the whole task chain is stopped
 
         "maxTimes": 10,                     // Optional, maximum execution count for this task
                                             // Default is infinity when not specified

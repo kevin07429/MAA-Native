@@ -214,7 +214,7 @@ public class AchievementTrackerHelper : PropertyChangedBase
 
         var growlInfo = new GrowlInfo {
             IsCustom = true,
-            Message = $"{LocalizationHelper.GetString("AchievementCelebrate")}: {achievement.Title}\n{achievement.Description}",
+            Message = $"{LocalizationHelper.GetString("Achievement.Celebrate")}: {achievement.Title}\n{achievement.Description}",
             StaysOpen = forceStayOpen || (staysOpen && !SettingsViewModel.AchievementSettings.AchievementPopupAutoClose),
             WaitTime = 15,
             IconKey = "HangoverGeometry",
@@ -284,7 +284,7 @@ public class AchievementTrackerHelper : PropertyChangedBase
             return;
         }
 
-        GrowlHelper.Show(() => {
+        GrowlHelper.Show(InfoType.Info, info.Message, () => {
             var previousItems = Growl.GrowlPanel?.Children.OfType<UIElement>().ToHashSet() ?? [];
             Growl.Info(info);
             AttachGrowlClickHandler(info, previousItems);

@@ -7,12 +7,12 @@ icon: material-symbols:task
 
 `resource/tasks` 的使用方法及各欄位說明
 
-::: tip
-推薦使用 [Visual Studio Code](https://code.visualstudio.com/) 並安裝 [Maa Pipeline Support](https://marketplace.visualstudio.com/items?itemName=nekosu.maa-support) 擴充功能以實作高效編輯，詳情請查閱擴充功能首頁和 [文件](../develop/vsc-ext-tutorial.md)。
+::: tip  
+推薦使用 [Visual Studio Code](https://code.visualstudio.com/) 並安裝 [Maa Pipeline Support](https://marketplace.visualstudio.com/items?itemName=nekosu.maa-support) 擴充功能以實作高效編輯，詳情請查閱擴充功能首頁和 [文件](../develop/vsc-ext-tutorial.md)。  
 :::
 
-::: warning
-請注意，json 檔案不支援註解。文件中的註解僅供說明參考，請勿直接複製使用。
+::: warning  
+請注意，json 檔案不支援註解。文件中的註解僅供說明參考，請勿直接複製使用。  
 :::
 
 ## 完整欄位一覽
@@ -55,6 +55,7 @@ icon: material-symbols:task
                                             // 對於相同任務，第一次辨識後第二次就不再辨識：
                                             //      "next": [ "A", "B", "A", "A" ] -> "next": [ "A", "B" ]
                                             // 不允許 JustReturn 型任務位於非最後一項
+                                            // 列表中存在未定義的任務名時，會在辨識開始前回傳 UnknownTask 錯誤並停止整條任務鏈
 
         "maxTimes": 10,                     // 選填，表示該任務最大執行次數
                                             // 不填寫時預設為無窮大

@@ -54,7 +54,16 @@ protected:
     void stage_operator_selection(const std::string& operator_id);
     void discard_pending_selection();
 
-    bool enter_facility(int index = 0);
+    /// @brief 进入当前画面中第 index 个同名设施入口，只识别画面内已有的入口，不主动滑动
+    /// @param index 同名设施中的序号（从 0 开始，按画面中从上到下、同行从左到右排序）
+    /// @param save_on_failure 失败时是否保存截图到 debug/infrast/enter_facility。
+    ///     debug 目录有文件数上限，可预期的失败（设施可能不在当前画面、序号可能超出实际建造数量）
+    ///     应传 false，避免无意义截图挤掉有排查价值的截图
+    /// @return 是否已点击进入
+    bool enter_facility(int index = 0, bool save_on_failure = true);
+    // 序号是否在 InfrastInfoTask 识别到的本设施数量以内，识别结果缺失时视为在范围内。
+    // 循环型设施的上限按建满取值，超出识别数量的序号仍需尝试一次以兜住少识别，但这类失败是可预期的
+    bool is_index_within_recognized_count(int index) const;
     // 从刚点进设施的界面，到干员列表页
     bool enter_oper_list_page();
 
@@ -117,6 +126,12 @@ protected:
         bool is_assistant_select = false,
         bool* room_kept_unchanged = nullptr);
     bool select_custom_opers(std::vector<std::string>& partial_result, bool is_dorm_order = false);
+    /// 阶段二选人：ALL 列表前几页未收尾的剩余目标按职业分桶定位。必选层桶内找齐即切下一桶，
+    /// 连续两页识别不变时回切页签重置滚动重试一轮；备选层在必选层之后按空位补人，补满即停，
+    /// 第一遍扫完全部桶仍有空位时，对到底未命中的备选桶统一重扫一轮兜住偶发漏识别；
+    /// 查不到职业的干员名留在 ALL 列表从当前位置继续翻页兜底。is_dorm_order 透传给
+    /// select_custom_opers，保证宿舍候补 ｢心情已满才跳过｣ 的反向过滤方向不变
+    bool select_custom_opers_by_role(bool is_dorm_order);
     // 扫描当前页满足心情条件的所有干员名
     bool get_opers(std::vector<std::string>& result, double mood = 1);
     // 复核干员选择是否符合期望
@@ -181,6 +196,12 @@ protected:
     // 筛选选中态探测的帧数与帧间隔：连续多帧无选中态才判定为“全部”，吸收刚进列表页的过场画面
     static constexpr int FilterProbeRetryTimes = 3;
     static constexpr int FilterProbeRetryDelayMs = 200;
+    // 阶段一（ALL 列表）最多扫描的页数（含首屏页，滑动次数比其少一），超出后剩余目标交给
+    // select_custom_opers_by_role 按职业分桶定位；头部高效率点名干员聚集在前两页，扫过仍未命中的
+    // 目标走职业分桶定位不慢于继续翻页，无技能沉底的名单（体系干员、宿舍挂件）则免于整段无效翻页
+    static constexpr int CustomPhaseOneMaxPages = 2;
+    // 阶段二切换职业页签后等待列表刷新动画的时间
+    static constexpr int CustomRoleSwitchDelayMs = 500;
     std::shared_ptr<infrast::TaskData> m_task_data;
     std::unordered_set<std::string> m_pending_operator_ids;
 

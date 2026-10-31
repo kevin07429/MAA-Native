@@ -28,7 +28,7 @@ namespace MaaWpfGui.Helper;
 
 public static class CopilotHelper
 {
-    private static readonly ILogger _logger = Log.ForContext("SourceContext", "CopilotHelper");
+    private static readonly ILogger _logger = Log.ForContext(typeof(CopilotHelper));
 
     public static async Task<(PrtsStatus Status, PrtsCopilotModel? Copilot)> RequestCopilotAsync(int copilotId, CancellationToken token = default)
     {
@@ -56,7 +56,7 @@ public static class CopilotHelper
                 throw new OperationCanceledException(token);
             }
 
-            Instances.CopilotViewModel.AddLog(LocalizationHelper.GetString("NetworkServiceError"), UiLogColor.Error, showTime: false);
+            Instances.CopilotViewModel.AddLog(LocalizationHelper.GetString("Copilot.NetworkServiceError"), UiLogColor.Error, showTime: false);
             Instances.CopilotViewModel.AddLog($"{e.Message}", UiLogColor.Error, showTime: false);
             _logger.Error(e, "Failed to request copilot from PRTS plus");
             return (PrtsStatus.NetworkError, null);
@@ -91,7 +91,7 @@ public static class CopilotHelper
                 throw new OperationCanceledException(token);
             }
 
-            Instances.CopilotViewModel.AddLog(LocalizationHelper.GetString("NetworkServiceError"), UiLogColor.Error, showTime: false);
+            Instances.CopilotViewModel.AddLog(LocalizationHelper.GetString("Copilot.NetworkServiceError"), UiLogColor.Error, showTime: false);
             Instances.CopilotViewModel.AddLog($"{e.Message}", UiLogColor.Error, showTime: false);
             _logger.Error(e, "Failed to request copilot set from PRTS plus");
             return (PrtsStatus.NetworkError, null);

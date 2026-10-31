@@ -46,7 +46,7 @@ def build(args):
     shutil.copytree(program, portable, dirs_exist_ok=True, ignore=shutil.ignore_patterns('changes.json'))
     shutil.copytree(args.resources, portable/'resource', ignore=shutil.ignore_patterns('*.bak','*.tmp','.git'))
     shutil.copytree(args.adb, portable/'platform-tools', ignore=shutil.ignore_patterns('adbkey*'))
-    task_types = ['StartUpTask','FightTask','InfrastTask','RecruitTask','MallTask','AwardTask','RoguelikeTask','ReclamationTask','UserDataUpdateTask']
+    task_types = ['StartUpTask','FightTask','InfrastTask','RecruitTask','MallTask','AwardTask','RoguelikeTask','UserDataUpdateTask']
     config = {
         'ConfigVersion': 1,
         'Current': 'Default',

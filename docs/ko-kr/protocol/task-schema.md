@@ -7,12 +7,12 @@ icon: material-symbols:task
 
 `resource/tasks`의 사용법 및 각 필드 설명
 
-::: tip
-[Visual Studio Code](https://code.visualstudio.com/)를 사용하고 [Maa Pipeline Support](https://marketplace.visualstudio.com/items?itemName=nekosu.maa-support) 확장을 설치하여 효율적으로 편집하는 것을 권장합니다. 자세한 내용은 확장 홈페이지와 [문서](../develop/vsc-ext-tutorial.md)를 참조하세요.
+::: tip  
+[Visual Studio Code](https://code.visualstudio.com/)를 사용하고 [Maa Pipeline Support](https://marketplace.visualstudio.com/items?itemName=nekosu.maa-support) 확장을 설치하여 효율적으로 편집하는 것을 권장합니다. 자세한 내용은 확장 홈페이지와 [문서](../develop/vsc-ext-tutorial.md)를 참조하세요.  
 :::
 
-::: warning
-JSON 파일은 주석을 지원하지 않으므로, 텍스트 내의 주석은 예시용입니다. 직접 복사하여 사용하지 마세요.
+::: warning  
+JSON 파일은 주석을 지원하지 않으므로, 텍스트 내의 주석은 예시용입니다. 직접 복사하여 사용하지 마세요.  
 :::
 
 ## 전체 필드 목록
@@ -55,6 +55,7 @@ JSON 파일은 주석을 지원하지 않으므로, 텍스트 내의 주석은 �
                                             // 동일 작업에 대해 첫 번째 인식 후 두 번째는 인식하지 않음:
                                             //     "next": [ "A", "B", "A", "A" ] -> "next": [ "A", "B" ]
                                             // JustReturn 유형 작업은 마지막 항목이 아닌 곳에 위치할 수 없음
+                                            // 리스트에 정의되지 않은 작업명이 존재하면 인식 시작 전에 UnknownTask 오류를 전송하고 작업 체인 전체를 중지함
 
         "maxTimes": 10,                     // 선택 사항, 최대 실행 횟수
                                             // 비워둘 시 기본값: 무한

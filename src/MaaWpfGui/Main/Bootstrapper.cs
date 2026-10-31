@@ -77,6 +77,7 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
 
     public static readonly string UiLogFile = Path.Combine(PathsHelper.DebugDir, "gui.log");
     public static readonly string UiLogBakFile = Path.Combine(PathsHelper.DebugDir, "gui.bak.log");
+    public static readonly string UiLogTmpFile = Path.Combine(PathsHelper.DebugDir, "gui.tmp.log");
     public static readonly string CoreLogFile = Path.Combine(PathsHelper.DebugDir, "asst.log");
     public static readonly string CoreLogBakFile = Path.Combine(PathsHelper.DebugDir, "asst.bak.log");
 
@@ -97,11 +98,29 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
                 "hostfxr.dll",
                 "hostpolicy.dll",
                 "libloader.dll",
+
                 "DirectML.dll",
-                "fastdeploy_ppocr.dll",
+                "fastdeploy_ppocr_maa.dll",
                 "MaaCore.dll",
                 "onnxruntime_maa.dll",
                 "opencv_world4_maa.dll",
+
+                // NetBeauty 关闭 patch（loader 模式）时 .NET 运行时核心件保留在安装目录根下
+                "clrjit.dll",
+                "coreclr.dll",
+                "PresentationFramework.dll",
+                "System.Collections.dll",
+                "System.IO.FileSystem.dll",
+                "System.IO.Packaging.dll",
+                "System.Memory.dll",
+                "System.Private.CoreLib.dll",
+                "System.Runtime.dll",
+                "System.Runtime.Extensions.dll",
+                "System.Runtime.InteropServices.dll",
+                "System.Runtime.InteropServices.RuntimeInformation.dll",
+                "System.Runtime.Loader.dll",
+                "System.Xaml.dll",
+                "WindowsBase.dll",
             };
 
             var currentDirectory = AppDomain.CurrentDomain.BaseDirectory;
@@ -428,18 +447,18 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
 
             if (message.Length > 0)
             {
-                message.AppendLine(LocalizationHelper.GetString("ErrorCrashMessageHeader"));
+                message.AppendLine(LocalizationHelper.GetString("Error.CrashMessage.Header"));
                 message.AppendLine();
-                message.AppendLine(LocalizationHelper.GetString("ErrorCrashMessageOpenLog"));
-                message.AppendLine(LocalizationHelper.GetString("ErrorCrashMessageGenerateReport"));
+                message.AppendLine(LocalizationHelper.GetString("Error.CrashMessage.OpenLog"));
+                message.AppendLine(LocalizationHelper.GetString("Error.CrashMessage.GenerateReport"));
                 message.AppendLine();
-                message.AppendLine(LocalizationHelper.GetString("ErrorCrashMessageHelpTip"));
+                message.AppendLine(LocalizationHelper.GetString("Error.CrashMessage.Help.Tip"));
 
                 _logger.Warning(message.ToString());
 
                 MessageBoxHelper.Show(
                     message.ToString(),
-                    LocalizationHelper.GetString("ErrorCrashDialogTitle"),
+                    LocalizationHelper.GetString("Error.CrashDialog.Title"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
@@ -480,6 +499,16 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
         ConfigurationHelper.Load();
         LocalizationHelper.Load();
 
+        // 单实例门禁先于一切会改动安装状态的启动逻辑（待更新包应用、更新结果消费、配置迁移）：
+        // 常驻实例持有互斥锁期间，第二实例须在此处退让唤醒，不得在拿锁前进更新流程
+        if (!HandleMultipleInstances())
+        {
+            FlushLogAndExit();
+            return;
+        }
+
+        _hasMutex = true;
+
         ConsumeDelegatedUpdateResult();
 
         if (!VerifyInstallLocation() || !TryApplyPendingUpdatePackage())
@@ -503,21 +532,14 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
             return;
         }
 
-        if (!HandleMultipleInstances())
-        {
-            FlushLogAndExit();
-            return;
-        }
-
         if (!IsWritable(PathsHelper.BaseDir))
         {
-            Task.Run(() => MessageBoxHelper.Show(LocalizationHelper.GetString("SoftwareLocationWarning"), LocalizationHelper.GetString("Error"), MessageBoxButton.OK, MessageBoxImage.Error));
+            Task.Run(() => MessageBoxHelper.Show(LocalizationHelper.GetString("Boot.SoftwareLocationWarning"), LocalizationHelper.GetString("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error));
         }
 
         Task.Run(ParseCrashLog);
 
         base.OnStart();
-        _hasMutex = true;
 
         // --config <配置名>：启动时切换到指定配置（Config 内部会重启进程）
         if (ParseArgs(args, "--config").TryGetValue("--config", out string configArgs))
@@ -615,12 +637,18 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
     {
         if (File.Exists(UiLogFile) && new FileInfo(UiLogFile).Length > 4 * 1024 * 1024)
         {
-            if (File.Exists(UiLogBakFile))
+            try
             {
+                // 先腾开 gui.log 再动 bak：日志句柄被另一实例持有时在此步失败，bak 完好，下次启动再滚动；
+                // overwrite 覆盖上次滚动中途退出残留的 tmp
+                File.Move(UiLogFile, UiLogTmpFile, overwrite: true);
                 File.Delete(UiLogBakFile);
+                File.Move(UiLogTmpFile, UiLogBakFile);
             }
-
-            File.Move(UiLogFile, UiLogBakFile);
+            catch (Exception)
+            {
+                // 滚动失败（多实例占用、权限等）不挡启动，append 现有 gui.log 继续；此时 logger 未建，无法记日志
+            }
         }
 
         // Bootstrap serilog
@@ -716,8 +744,8 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
             currentBaseDirectory,
             unsupportedLocation);
         MessageBoxHelper.Show(
-            LocalizationHelper.GetStringFormat("UnsupportedInstallLocationError", currentBaseDirectory, unsupportedLocation),
-            LocalizationHelper.GetString("Error"),
+            LocalizationHelper.GetStringFormat("Boot.UnsupportedInstallLocationError", currentBaseDirectory, unsupportedLocation),
+            LocalizationHelper.GetString("Common.Error"),
             MessageBoxButton.OK,
             MessageBoxImage.Error);
         FlushLogAndExit();
@@ -823,7 +851,7 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
             if (unknownDlls.Count > 0)
             {
                 MessageBoxHelper.Show(
-                    LocalizationHelper.GetString("UnknownDllDetected") + "\n" + string.Join("\n", unknownDlls),
+                    LocalizationHelper.GetString("Boot.UnknownDllDetected") + "\n" + string.Join("\n", unknownDlls),
                     "MAA",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -837,12 +865,12 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
         if (!IsCoreInitSkipped && !IsVCppInstalled())
         {
             var ret = MessageBoxHelper.Show(
-                LocalizationHelper.GetString("VC++NotInstalled"),
+                LocalizationHelper.GetString("Boot.VcNotInstalled"),
                 "MAA",
                 MessageBoxButton.OKCancel,
                 MessageBoxImage.Information,
-                ok: LocalizationHelper.GetString("Confirm"),
-                cancel: LocalizationHelper.GetString("Cancel"));
+                ok: LocalizationHelper.GetString("Common.Confirm"),
+                cancel: LocalizationHelper.GetString("Common.Cancel"));
             if (ret == MessageBoxResult.OK)
             {
                 var startInfo = new ProcessStartInfo {
@@ -904,7 +932,7 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
                 return false;
             }
 
-            MessageBoxHelper.Show(LocalizationHelper.GetString("MultiInstanceUnderSamePath"), "MAA", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBoxHelper.Show(LocalizationHelper.GetString("Boot.MultiInstanceUnderSamePath"), "MAA", MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
         catch (AbandonedMutexException)
@@ -917,9 +945,34 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
         }
         catch (Exception e)
         {
-            MessageBoxHelper.Show(LocalizationHelper.GetString("MultiInstanceUnderSamePath") + e.Message, "MAA", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBoxHelper.Show(LocalizationHelper.GetString("Boot.MultiInstanceUnderSamePath") + e.Message, "MAA", MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
+    }
+
+    /// <summary>
+    /// 释放单实例互斥量并复位持有标志，幂等。除 <see cref="OnExit"/> 外，各 Environment.Exit
+    /// 早退出口不经过 WPF 关闭流程，也须调用本方法显式释放；调用须在持有互斥量的 UI 线程上。
+    /// </summary>
+    internal static void ReleaseInstanceMutex()
+    {
+        if (!_hasMutex)
+        {
+            return;
+        }
+
+        _hasMutex = false;
+        try
+        {
+            _mutex?.ReleaseMutex();
+        }
+        catch (Exception e)
+        {
+            _logger.Warning(e, "Failed to release instance mutex");
+        }
+
+        _mutex?.Dispose();
+        _mutex = null;
     }
 
     public static string InstanceKey
@@ -1301,8 +1354,9 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
     {
         try
         {
-            // Core 销毁会 join 全部工作线程，任务运行中在 UI 线程同步销毁可能与回调互等挂死，
-            // 故移至后台线程限时等待，超时放弃销毁，由进程退出兜底
+            // Core 销毁会 join 全部工作线程，同步、不可中断且无超时参数，移至后台线程才能限时等待；
+            // 超时放弃销毁，由进程退出兜底。Logger 等静态单例的析构挂在 CRT atexit，
+            // 于 DLL_PROCESS_DETACH 执行，放弃销毁不会截断日志
             Task.Run(() => Instances.AsstProxy?.AsstDestroy()).Wait(TimeSpan.FromSeconds(3));
         }
         catch (Exception e)
@@ -1340,14 +1394,7 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
         ConfigurationHelper.Release();
         ConfigFactory.Release();
 
-        // 释放互斥量
-        if (!_hasMutex)
-        {
-            return;
-        }
-
-        _mutex?.ReleaseMutex();
-        _mutex?.Dispose();
+        ReleaseInstanceMutex();
     }
 
     /// <summary>
@@ -1487,19 +1534,19 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
         if (IsResourceBroken)
         {
             _logger.Warning("Task blocked: resource broken");
-            return LocalizationHelper.GetString("ResourceBrokenTaskBlocked");
+            return LocalizationHelper.GetString("Boot.ResourceBrokenTaskBlocked");
         }
 
         if (RequiresRestart)
         {
             _logger.Warning("Task blocked: restart required");
-            return LocalizationHelper.GetString("RestartRecommendation");
+            return LocalizationHelper.GetString("Boot.RestartRecommendation");
         }
 
         if (!RunningState.Instance.GetInit())
         {
             _logger.Warning("Task blocked: core is still loading");
-            var reason = LocalizationHelper.GetString("CoreLoadingTip");
+            var reason = LocalizationHelper.GetString("Boot.CoreLoading.Tip");
             Execute.OnUIThread(() => GrowlHelper.Warning(reason));
             return reason;
         }
@@ -1530,6 +1577,9 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
 
             Process.Start(startInfo);
         }
+
+        // 紧邻进程退出再释放互斥量，缩小释放后第三实例抢锁插进来的窗口
+        ReleaseInstanceMutex();
         Environment.Exit(0);
     }
 
@@ -1582,8 +1632,8 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
     private static void ShowPendingUpdateMissingUpdaterDialog()
     {
         MessageBoxHelper.Show(
-            LocalizationHelper.GetString("UpdateApplyMissingUpdater"),
-            LocalizationHelper.GetString("Error"),
+            LocalizationHelper.GetString("VersionUpdate.MissingUpdater"),
+            LocalizationHelper.GetString("Common.Error"),
             icon: MessageBoxImage.Error);
     }
 
@@ -1653,11 +1703,14 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
     }
 
     /// <summary>
-    /// 落盘日志后立即结束进程，供启动中止分支使用。
-    /// 仅限 OnStart 早期调用：此时互斥量与主窗口尚未创建，<see cref="OnExit"/> 的清理流程不适用。
+    /// 释放单实例互斥量、落盘日志后立即结束进程，供启动中止分支使用。
+    /// 调用时主窗口尚未创建，<see cref="OnExit"/> 的清理流程不适用；互斥量是否持有因调用分支而异
+    /// （单实例门禁前移后，更新早退等分支在持锁状态下退出），由 <see cref="ReleaseInstanceMutex"/> 内部守卫区分。
     /// </summary>
     private static void FlushLogAndExit()
     {
+        ReleaseInstanceMutex();
+
         // Environment.Exit 不经过 WPF 关闭流程，日志需先显式落盘
         Log.CloseAndFlush();
         Environment.Exit(0);

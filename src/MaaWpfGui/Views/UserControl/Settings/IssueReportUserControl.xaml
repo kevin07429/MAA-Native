@@ -1,4 +1,4 @@
-﻿<UserControl
+<UserControl
     x:Class="MaaWpfGui.Views.UserControl.Settings.IssueReportUserControl"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -21,16 +21,16 @@
         <Button
             Margin="5"
             Command="{s:Action GenerateSupportPayload}"
-            Content="{DynamicResource GenerateSupportPayload}"
+            Content="{DynamicResource Error.GenerateSupportPayload}"
             IsEnabled="{Binding CanGenerateSupportPayload}" />
         <Button
             Margin="5"
             Command="{s:Action OpenDebugFolder}"
-            Content="{DynamicResource OpenDebugFolder}" />
+            Content="{DynamicResource Error.OpenDebugFolder}" />
         <Button
             Margin="5"
             Command="{s:Action ClearImageCache}"
-            Content="{DynamicResource ClearImageCache}"
+            Content="{DynamicResource Error.ClearImageCache}"
             IsEnabled="{Binding CanClearImageCache}" />
     </StackPanel>
 </UserControl>

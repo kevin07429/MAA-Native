@@ -113,6 +113,9 @@ public static class DemoShotService
         {
             _logger.Fatal(e, "Demo shot service failed");
             Log.CloseAndFlush();
+
+            // Environment.Exit 不经过 WPF 关闭流程，须显式释放单实例互斥量
+            Bootstrapper.ReleaseInstanceMutex();
             Environment.Exit(1);
         }
     }
@@ -182,7 +185,7 @@ public static class DemoShotService
 
         ConfigFactory.CurrentConfig.Gui.WindowTitlePrefix = string.Empty;
         SettingsViewModel.GuiSettings.WindowTitleSelectShowList =
-            [new KeyValuePair<string, string>("4", LocalizationHelper.GetString("ClientType"))];
+            [new KeyValuePair<string, string>("4", LocalizationHelper.GetString("Settings.Game.ClientType"))];
 
         // 标题版本段覆盖：ResolveWindowTitleVersionAsync 已把缺省/latest 解析为具体版本（失败保持 null 走原行为）
         SettingsViewModel.DemoWindowTitleVersionOverride = data.WindowTitle?.Version;
@@ -250,7 +253,6 @@ public static class DemoShotService
             ["DepotMaintain"] = () => new DepotMaintainTask(),
             ["SwitchTheme"] = () => new SwitchThemeTask(),
             ["Roguelike"] = () => new RoguelikeTask(),
-            ["Reclamation"] = () => new ReclamationTask(),
         };
 
     /// <summary>
@@ -530,7 +532,7 @@ public static class DemoShotService
     {
         var vm = Instances.CopilotViewModel;
 
-        // CopilotViewModel.ClearLog 为 private 且会追加 CopilotTip，这里直接清空公开集合后按演示数据重建
+        // CopilotViewModel.ClearLog 为 private 且会追加 Copilot.Usage.Tip，这里直接清空公开集合后按演示数据重建
         vm.LogItemViewModels.Clear();
 
         foreach (var line in copilot.HeaderLines)

@@ -7,12 +7,12 @@ icon: material-symbols:task
 
 `resource/tasks` の使用方法と各フィールドの説明
 
-::: tip
-It is recommended to use [Visual Studio Code](https://code.visualstudio.com/) and install [Maa Pipeline Support](https://marketplace.visualstudio.com/items?itemName=nekosu.maa-support) extension for efficient editing. For more details, please visit the extension's homepage and the [docs](../develop/vsc-ext-tutorial.md).
+::: tip  
+It is recommended to use [Visual Studio Code](https://code.visualstudio.com/) and install [Maa Pipeline Support](https://marketplace.visualstudio.com/items?itemName=nekosu.maa-support) extension for efficient editing. For more details, please visit the extension's homepage and the [docs](../develop/vsc-ext-tutorial.md).  
 :::
 
-::: warning
-JSONファイルはコメントをサポートしていません。テキスト内のコメントはプレゼンテーション用にのみ使用されます。直接コピーして使用しないでください。
+::: warning  
+JSONファイルはコメントをサポートしていません。テキスト内のコメントはプレゼンテーション用にのみ使用されます。直接コピーして使用しないでください。  
 :::
 
 ## 完全なフィールドの一覧
@@ -55,6 +55,7 @@ JSONファイルはコメントをサポートしていません。テキスト�
                                             // 同じタスクの場合、最初の認識後に2回目は認識されません。
                                             // "next": [ "A", "B", "A", "A" ] -> "next": [ "A", "B" ]
                                             // 最後のアイテム以外にJustReturnタイプのタスクが配置されないようにします
+                                            // リストに未定義のタスク名が存在する場合、認識開始前に UnknownTask エラーが送信され、タスクチェーン全体が停止されます
 
         "maxTimes": 10,                     // オプション、タスクを実行できる最大回数を示します
                                             // 指定されていない場合は無限になります

@@ -91,8 +91,8 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
         foreach (var plan in PlanList)
         {
             var newName = !string.IsNullOrEmpty(plan.DropId)
-                ? ItemListHelper.GetItemName(plan.DropId) ?? LocalizationHelper.GetString("NotSelected")
-                : LocalizationHelper.GetString("NotSelected");
+                ? ItemListHelper.GetItemName(plan.DropId) ?? LocalizationHelper.GetString("Common.NotSelected")
+                : LocalizationHelper.GetString("Common.NotSelected");
             plan.DropName = newName;
         }
 
@@ -159,7 +159,8 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
             };
             RefreshFightTaskDrops(taskId, plan.DropId, plan.DropCount,
                 $"{task.PlanList.IndexOf(plan) + 1}",
-                fight);
+                fight,
+                task.CountDualChipAsChipPack);
         }
     }
 
@@ -174,13 +175,18 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
         foreach (var task in _serializedDepotMaintainTasks.ToList())
         {
             _serializedDepotMaintainTasks.Remove(task);
-            var depotList = Instances.ToolboxViewModel?.DepotResult.Where(item => item.Count >= 0).ToDictionary(item => item.Id, item => item.Count) ?? [];
+
+            // 没有任何库存数据时无从判断翻转，按 0 计会误报计划不足
+            if (Instances.ToolboxViewModel?.GetDepotSnapshot() is not { } depotList)
+            {
+                continue;
+            }
 
             // SortByProgress 开启时按下发口径（达成率升序）挑选提示对象，与实际执行顺序一致
             var plans = task.PlanList.Select((plan, index) => (plan, index));
             if (task.SortByProgress)
             {
-                plans = plans.OrderBy(p => PlanProgress(p.plan, depotList));
+                plans = plans.OrderBy(p => PlanProgress(p.plan, depotList, task.CountDualChipAsChipPack));
             }
 
             foreach (var (plan, index) in plans)
@@ -192,6 +198,11 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
                 }
 
                 var currentCount = depotList.TryGetValue(plan.DropId, out var value) ? value : 0;
+                if (task.CountDualChipAsChipPack)
+                {
+                    currentCount += GetDualChipConversion(plan.DropId, depotList);
+                }
+
                 if (plan.DropCount - currentCount <= 0)
                 {
                     continue;
@@ -199,7 +210,7 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
 
                 var dropName = ItemListHelper.GetItemName(plan.DropId) ?? plan.DropId;
                 Instances.TaskQueueViewModel.AddLog(
-                    LocalizationHelper.GetStringFormat("DepotPlanCacheStaleSkipped", (index + 1).ToString(), dropName, currentCount.ToString("N0"), plan.DropCount.ToString("N0")),
+                    LocalizationHelper.GetStringFormat("TaskQueue.DepotMaintain.PlanCacheStaleSkipped", (index + 1).ToString(), dropName, currentCount.ToString("N0"), plan.DropCount.ToString("N0")),
                     UiLogColor.Warning);
                 if (task.OnlyFirstInsufficientPlan)
                 {
@@ -252,6 +263,16 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
     {
         get => GetTaskConfig<DepotMaintainTask>().SortByProgress;
         set => SetTaskConfig<DepotMaintainTask>(t => t.SortByProgress == value, t => t.SortByProgress = value);
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether 统计芯片组库存时把对应双芯片按合成配方折算计入。
+    /// 默认关闭；开启后计划摘要以 ｢原始 (+折算)｣ 形式显示，达标判定与缺口计算使用折算后数量。
+    /// </summary>
+    public bool CountDualChipAsChipPack
+    {
+        get => GetTaskConfig<DepotMaintainTask>().CountDualChipAsChipPack;
+        set => SetTaskConfig<DepotMaintainTask>(t => t.CountDualChipAsChipPack == value, t => t.CountDualChipAsChipPack = value);
     }
 
     /// <summary>
@@ -314,8 +335,8 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
         }
 
         var result = MessageBoxHelper.Show(
-            LocalizationHelper.GetString("ClearPlansConfirm"),
-            LocalizationHelper.GetString("Warning"),
+            LocalizationHelper.GetString("TaskQueue.DepotMaintain.ClearPlansConfirm"),
+            LocalizationHelper.GetString("Common.Warning"),
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
         if (result != MessageBoxResult.Yes)
@@ -330,11 +351,11 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
     /// 预设列表。
     /// </summary>
     public static LocalizedObservableList<string> PresetList { get; } = new(
-        ("Chip1", "DepotPresetChip1"),
-        ("Chip2", "DepotPresetChip2"),
-        ("CE6", "DepotPresetLmd"),
-        ("AP5", "DepotPresetCertificate"),
-        ("CA5", "DepotPresetSkillSummary"));
+        ("Chip1", "TaskQueue.DepotMaintain.PresetChip1"),
+        ("Chip2", "TaskQueue.DepotMaintain.PresetChip2"),
+        ("CE6", "TaskQueue.DepotMaintain.PresetLmd"),
+        ("AP5", "TaskQueue.DepotMaintain.PresetCertificate"),
+        ("CA5", "TaskQueue.DepotMaintain.PresetSkillSummary"));
 
     /// <summary>
     /// 预设数据：关卡 → [(掉落物 itemId, 掉落物名称), ...]。
@@ -402,7 +423,7 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
         // 快捷导入不干预运行语义， ｢活动期间跳过｣ 开启时仅提示，导入的计划在活动期间不会执行
         if (GetTaskConfig<DepotMaintainTask>().SkipDuringActivity)
         {
-            GrowlHelper.Warning(LocalizationHelper.GetString("DepotPresetActivitySkipConflict"));
+            GrowlHelper.Warning(LocalizationHelper.GetString("TaskQueue.DepotMaintain.PresetActivitySkipConflict"));
         }
     }
 
@@ -427,7 +448,7 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
         var list = PlanList.ToList();
         foreach (var (stage, dropId, count) in plans)
         {
-            var dropName = ItemListHelper.GetItemName(dropId) ?? LocalizationHelper.GetString("NotSelected");
+            var dropName = ItemListHelper.GetItemName(dropId) ?? LocalizationHelper.GetString("Common.NotSelected");
             var plan = new DepotPlanItemViewModel(stage, dropId, dropName, count);
             plan.PropertyChanged += PlanItem_PropertyChanged;
             list.Add(plan);
@@ -495,7 +516,8 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
     public ObservableCollection<StageSourceItem> StageListSource { get; private set => SetAndNotify(ref field, value); } = [];
 
     [PropertyDependsOn(typeof(GuiSettingsUserControlModel), nameof(GuiSettingsUserControlModel.Language))]
-    public string PlanInfo => string.Join("\n", PlanList.Select((t, i) => $"{i + 1}: {StageListSource.FirstOrDefault(i => i.Value == t.Stage)?.Display ?? t.Stage} - {t.DropName} {GetCurrentInventoryCount(t.DropId).FormatNumber(false)}/{t.DropCount.FormatNumber(false)}"));
+    [PropertyDependsOn(nameof(CountDualChipAsChipPack))]
+    public string PlanInfo => string.Join("\n", PlanList.Select((t, i) => $"{i + 1}: {StageListSource.FirstOrDefault(i => i.Value == t.Stage)?.Display ?? t.Stage} - {t.DropName} {GetInventoryCountDisplay(t.DropId)}/{t.DropCount.FormatNumber(false)}"));
 
     /// <summary>
     /// 获取指定掉落物当前库存数量，无数据时返回 "--"。
@@ -518,13 +540,73 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
     }
 
     /// <summary>
+    /// 获取计划摘要行的现有库存显示文本：开启双芯片折算且有折算量时为 ｢原始 (+折算)｣，否则为原始值。
+    /// </summary>
+    private string GetInventoryCountDisplay(string dropId)
+    {
+        var raw = GetCurrentInventoryCount(dropId).FormatNumber(false);
+        if (raw == "--" || !CountDualChipAsChipPack)
+        {
+            return raw;
+        }
+
+        var depot = Instances.ToolboxViewModel?.DepotResult;
+        if (depot == null || depot.Count == 0)
+        {
+            return raw;
+        }
+
+        var depotList = depot.Where(item => item.Count >= 0).ToDictionary(item => item.Id, item => item.Count);
+        var conversion = GetDualChipConversion(dropId, depotList);
+        return conversion > 0 ? $"{raw} (+{conversion.FormatNumber(false)})" : raw;
+    }
+
+    /// <summary>
+    /// 计算芯片组按双芯片配方折算的库存增量，即仓库中以 dropId 为材料的双芯片数量 × 配方消耗数之和，
+    /// 当前数据每个双芯片折算为 2 个芯片组。非芯片组或双芯片无库存时为 0。
+    /// </summary>
+    /// <param name="dropId">计划目标物品 id。</param>
+    /// <param name="depotList">识别缓存的库存数量表。</param>
+    /// <returns>折算增量。</returns>
+    public static int GetDualChipConversion(string dropId, IReadOnlyDictionary<string, int> depotList)
+    {
+        var conversion = 0;
+        foreach (var (productId, materialCount) in ItemListHelper.GetFormulaProducts(dropId))
+        {
+            if (!IsDualChip(productId))
+            {
+                continue;
+            }
+
+            if (depotList.TryGetValue(productId, out var count))
+            {
+                conversion += count * materialCount;
+            }
+        }
+
+        return conversion;
+    }
+
+    /// <summary>
+    /// 判断物品是否为双芯片，依据是配方含芯片助剂（32001）。
+    /// </summary>
+    /// <param name="itemId">物品 id。</param>
+    /// <returns>是双芯片时为 true。</returns>
+    private static bool IsDualChip(string itemId)
+    {
+        return ItemListHelper.ArkItems.TryGetValue(itemId, out var item)
+            && item.Formula?.ContainsKey("32001") == true;
+    }
+
+    /// <summary>
     /// 计算计划的库存达成率（当前÷目标），供 <see cref="SortByProgress"/> 排序。
     /// 无效计划（未选材料或目标为 0）排最后；未识别过的材料按 0 计，与预检口径一致，缺口最大优先。
     /// </summary>
     /// <param name="plan">计划。</param>
     /// <param name="depotList">识别缓存的库存数量表。</param>
+    /// <param name="countDualChipAsChipPack">是否将双芯片按合成配方折算计入当前数量。</param>
     /// <returns>达成率，0 起步；无效计划返回 <see cref="double.MaxValue"/>。</returns>
-    private static double PlanProgress(DepotMaintainTask.Plan plan, IReadOnlyDictionary<string, int> depotList)
+    private static double PlanProgress(DepotMaintainTask.Plan plan, IReadOnlyDictionary<string, int> depotList, bool countDualChipAsChipPack)
     {
         if (string.IsNullOrEmpty(plan.DropId) || plan.DropCount <= 0)
         {
@@ -532,6 +614,11 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
         }
 
         var currentCount = depotList.TryGetValue(plan.DropId, out var value) ? value : 0;
+        if (countDualChipAsChipPack)
+        {
+            currentCount += GetDualChipConversion(plan.DropId, depotList);
+        }
+
         return (double)currentCount / plan.DropCount;
     }
 
@@ -605,7 +692,7 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
         foreach (var plan in task.PlanList)
         {
             // 根据 DropId 从掉落列表恢复 DropName，避免初始化显示为"不选择"
-            var dropName = FightTaskUserControlModel.Instance.DropsList.FirstOrDefault(i => i.Value == plan.DropId)?.Display ?? LocalizationHelper.GetString("NotSelected");
+            var dropName = FightTaskUserControlModel.Instance.DropsList.FirstOrDefault(i => i.Value == plan.DropId)?.Display ?? LocalizationHelper.GetString("Common.NotSelected");
 
             var uiPlan = new DepotPlanItemViewModel(plan.Stage, plan.DropId, dropName, plan.DropCount, plan.UseMedicine, plan.MedicineCount, plan.UseStone, plan.StoneCount, plan.TaskId) {
                 Index = index,
@@ -706,14 +793,14 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
             // 活动期间跳过：当有 SideStory 活动进行中时跳过整个库存保持任务
             if (depot.SkipDuringActivity && Instances.StageManager.IsActivityOpen())
             {
-                Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetString("DepotPlanSkippedActivity"), UiLogColor.Info);
+                Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetString("TaskQueue.DepotMaintain.PlanSkippedActivity"), UiLogColor.Info);
                 return (null, []);
             }
 
             // 资源全开放期间跳过：当资源全开放活动进行中时跳过整个库存保持任务
             if (depot.SkipDuringResourceCollection && Instances.StageManager.IsResourceCollectionOpen())
             {
-                Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetString("DepotPlanSkippedResourceCollection"), UiLogColor.Info);
+                Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetString("TaskQueue.DepotMaintain.PlanSkippedResourceCollection"), UiLogColor.Info);
                 return (null, []);
             }
 
@@ -726,7 +813,7 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
                 var (result, depotTaskId) = Instances.AsstProxy.AsstAppendTaskWithEncoding(TaskType.Depot, (AsstTaskType.Depot, null));
                 if (!result)
                 {
-                    Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetString("DepotPlanUpdateDepotFailed"), UiLogColor.Error);
+                    Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetString("TaskQueue.DepotMaintain.PlanUpdateDepotFailed"), UiLogColor.Error);
                     return (false, []);
                 }
                 Instances.ToolboxViewModel.MarkDepotRecognitionSyncTimeForReset(depotTaskId);
@@ -736,7 +823,7 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
             // 空计划且未追加前置仓库识别时整任务没有 core 任务，须说明跳过原因；计划非空时各 plan 已有逐条日志
             if (depot.PlanList.Count == 0 && !depot.UpdateDepot)
             {
-                Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetString("DepotPlanNoPlan"), UiLogColor.Error);
+                Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetString("TaskQueue.DepotMaintain.PlanNoPlan"), UiLogColor.Error);
                 return (null, []);
             }
 
@@ -745,14 +832,16 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
             // 登记本轮参与评估，任意识别完成后复查未下发计划的缓存翻转（含 UpdateDepot=false 的场景）
             _ = _serializedDepotMaintainTasks.Add(depot);
 
-            var depotList = Instances.ToolboxViewModel?.DepotResult.Where(item => item.Count >= 0).ToDictionary(item => item.Id, item => item.Count) ?? [];
+            // 预检空缓存按 0 计（各计划开始时会用最新库存重算缺口并拦截无数据场景），
+            // UpdateDepot 开启时的首轮识别正是靠这个行为把计划照常下发后由重算纠正
+            var depotList = Instances.ToolboxViewModel?.GetDepotSnapshot() ?? [];
 
             // 按达成率排序时仅调整下发顺序（升序，缺口比例最大优先），配置中的列表顺序不变；写回 TaskId 与日志序号仍用原列表索引，与 UI 列表对应
             var order = Enumerable.Range(0, depot.PlanList.Count).ToList();
             if (depot.SortByProgress && depot.PlanList.Count > 1)
             {
-                order = [.. order.OrderBy(i => PlanProgress(depot.PlanList[i], depotList))];
-                Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetString("DepotPlanSortedByProgress"), UiLogColor.Info);
+                order = [.. order.OrderBy(i => PlanProgress(depot.PlanList[i], depotList, depot.CountDualChipAsChipPack))];
+                Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetString("TaskQueue.DepotMaintain.PlanSortedByProgress"), UiLogColor.Info);
             }
 
             foreach (var i in order)
@@ -761,21 +850,26 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
                 depot.PlanList[i] = plan with { TaskId = 0 }; // 主动重置 TaskId
                 if (string.IsNullOrEmpty(plan.DropId))
                 {
-                    Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetStringFormat("DepotPlanInvalidDropItem", i + 1), UiLogColor.Error);
+                    Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetStringFormat("TaskQueue.DepotMaintain.PlanInvalidDropItem", i + 1), UiLogColor.Error);
                     continue;
                 }
                 if (plan.DropCount <= 0)
                 {
-                    Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetStringFormat("DepotPlanZeroDropCount", i + 1), UiLogColor.Error);
+                    Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetStringFormat("TaskQueue.DepotMaintain.PlanZeroDropCount", i + 1), UiLogColor.Error);
                     continue;
                 }
 
                 var currentCount = depotList.TryGetValue(plan.DropId, out var value) ? value : 0;
+                if (depot.CountDualChipAsChipPack)
+                {
+                    currentCount += GetDualChipConversion(plan.DropId, depotList);
+                }
+
                 var need = plan.DropCount - currentCount;
                 var dropName = ItemListHelper.GetItemName(plan.DropId) ?? plan.DropId;
                 if (need <= 0)
                 {
-                    Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetStringFormat("DepotPlanInventoryEnough", i + 1, dropName, currentCount.ToString("N0"), plan.DropCount.ToString("N0")));
+                    Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetStringFormat("TaskQueue.DepotMaintain.PlanInventoryEnough", i + 1, dropName, currentCount.ToString("N0"), plan.DropCount.ToString("N0")));
                     continue;
                 }
 
@@ -784,11 +878,11 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
                 {
                     if (string.IsNullOrEmpty(plan.Stage))
                     {
-                        Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetStringFormat("DepotPlanNoStage", i + 1), UiLogColor.Error);
+                        Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetStringFormat("TaskQueue.DepotMaintain.PlanNoStage", i + 1), UiLogColor.Error);
                     }
                     else
                     {
-                        Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetStringFormat("DepotPlanStageNotOpen", i + 1, plan.Stage));
+                        Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetStringFormat("TaskQueue.DepotMaintain.PlanStageNotOpen", i + 1, plan.Stage));
                     }
 
                     continue;
@@ -811,13 +905,13 @@ public class DepotMaintainTaskUserControlModel : TaskSettingsViewModel, DepotMai
                 var (ret, id) = Instances.AsstProxy.AsstAppendTaskWithEncoding(TaskType.Fight, fight);
                 if (!ret)
                 {
-                    Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetStringFormat("DepotPlanAddTaskFailed", i + 1), UiLogColor.Error);
+                    Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetStringFormat("TaskQueue.DepotMaintain.PlanAddTaskFailed", i + 1), UiLogColor.Error);
                 }
                 else
                 {
                     taskIds.Add(id);
                     depot.PlanList[i] = plan with { TaskId = id };
-                    Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetStringFormat("DepotPlanInventoryInsufficient", i + 1, dropName, currentCount.ToString("N0"), plan.DropCount.ToString("N0"), need.ToString("N0")));
+                    Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetStringFormat("TaskQueue.DepotMaintain.PlanInventoryInsufficient", i + 1, dropName, currentCount.ToString("N0"), plan.DropCount.ToString("N0"), need.ToString("N0")));
                     if (depot.OnlyFirstInsufficientPlan)
                     {
                         break; // 仅下发第一个库存不足的计划，其后计划本轮不评估也不输出日志

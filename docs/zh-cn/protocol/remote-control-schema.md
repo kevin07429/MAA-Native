@@ -7,12 +7,12 @@ icon: mdi:remote-desktop
 
 要实现对 MAA 的远程控制，你需要提供一个服务，该服务必须是 http(s) 服务，并且提供下面两个可匿名访问的端点（Endpoint）。这两个端点必须是 http(s) 协议的 web 端点。
 
-::: warning
-如果该端点为 http 协议，MAA 会在每次连接时发出不安全警告。**在公网部署明文传输服务是一种非常不推荐且危险的行为，仅供测试使用。**
+::: warning  
+如果该端点为 http 协议，MAA 会在每次连接时发出不安全警告。**在公网部署明文传输服务是一种非常不推荐且危险的行为，仅供测试使用。**  
 :::
 
-::: tip
-请注意 JSON 文件是不支持注释的，文本中的注释仅用于演示，请勿直接复制使用
+::: tip  
+请注意 JSON 文件是不支持注释的，文本中的注释仅用于演示，请勿直接复制使用  
 :::
 
 ## 获取任务端点
@@ -54,7 +54,7 @@ MAA 会以固定间隔持续轮询这个端点（默认 1 秒，可在设置中�
         },
         {
             "id": "b353c469-b902-4357-bd8f-d133199eea31",   //任务的唯一id，字符串类型，在汇报任务时会使用
-            "type": "Toolbox-GachaOnce",                    //工具箱中的牛牛抽卡任务，该类Type的可选取值为：Toolbox-GachaOnce, Toolbox-GachaTenTimes
+            "type": "Toolbox-GachaOnce",                    //工具箱中的任务，该类Type的可选取值为：Toolbox-GachaOnce, Toolbox-GachaTenTimes, Toolbox-Reclamation（生息演算）
         },
         {
             "id": "b353c469-b902-4357-bd8f-d133199eea31",   //任务的唯一id，字符串类型，在汇报任务时会使用
@@ -84,7 +84,7 @@ MAA 会以固定间隔持续轮询这个端点（默认 1 秒，可在设置中�
 
 ::: note
 
-- LinkStart-[TaskName] 型的任务 type 的可选值为 LinkStart-Base，LinkStart-WakeUp，LinkStart-Combat，LinkStart-Recruiting，LinkStart-Mall，LinkStart-Mission，LinkStart-AutoRoguelike，LinkStart-Reclamation
+- LinkStart-[TaskName] 型的任务 type 的可选值为 LinkStart-Base，LinkStart-WakeUp，LinkStart-Combat，LinkStart-Recruiting，LinkStart-Mall，LinkStart-Mission，LinkStart-AutoRoguelike；LinkStart-Reclamation 为兼容旧版保留的别名，等价于 Toolbox-Reclamation
 - Settings-[SettingsName] 型的任务的 type 的可选值为 Settings-ConnectAddress, Settings-Stage1
 - Settings 系列任务仍然是要按顺序执行的，并不会在收到任务的时候立刻执行，而是排在上一个任务的后面
 - 多个立即执行的任务也会按下发顺序执行，只不过这些任务的执行速度都很快，通常来说，并不需要关注他们的顺序。

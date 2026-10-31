@@ -7,12 +7,12 @@ icon: mdi:remote-desktop
 
 To implement remote control of MAA, you need to provide a service that must be an HTTP(S) service and offer the following two anonymously accessible endpoints. These endpoints must be HTTP(S) web endpoints.
 
-::: warning
-If the endpoint uses HTTP protocol, MAA will issue a security warning with each connection. **Deploying plaintext transmission services on public internet is highly discouraged and dangerous, for testing purposes only.**
+::: warning  
+If the endpoint uses HTTP protocol, MAA will issue a security warning with each connection. **Deploying plaintext transmission services on public internet is highly discouraged and dangerous, for testing purposes only.**  
 :::
 
-::: tip
-Please note that JSON files do not support comments. The comments in this document are for demonstration purposes only. Do not copy them directly.
+::: tip  
+Please note that JSON files do not support comments. The comments in this document are for demonstration purposes only. Do not copy them directly.  
 :::
 
 ## Task Retrieval Endpoint
@@ -54,7 +54,7 @@ This endpoint must return a JSON-formatted response that meets at least the foll
         },
         {
             "id": "b353c469-b902-4357-bd8f-d133199eea31",   // Unique task ID, string type, used when reporting task status
-            "type": "Toolbox-GachaOnce",                    // Toolbox gacha task, optional values: Toolbox-GachaOnce, Toolbox-GachaTenTimes
+            "type": "Toolbox-GachaOnce",                    // Toolbox task, optional values: Toolbox-GachaOnce, Toolbox-GachaTenTimes, Toolbox-Reclamation (Reclamation Algorithm)
         },
         {
             "id": "b353c469-b902-4357-bd8f-d133199eea31",   // Unique task ID, string type, used when reporting task status
@@ -84,7 +84,7 @@ The endpoint should be reentrant and repeatedly return tasks to execute, as MAA 
 
 ::: note
 
-- LinkStart-[TaskName] task types include LinkStart-Base, LinkStart-WakeUp, LinkStart-Combat, LinkStart-Recruiting, LinkStart-Mall, LinkStart-Mission, LinkStart-AutoRoguelike, LinkStart-Reclamation
+- LinkStart-[TaskName] task types include LinkStart-Base, LinkStart-WakeUp, LinkStart-Combat, LinkStart-Recruiting, LinkStart-Mall, LinkStart-Mission, LinkStart-AutoRoguelike; LinkStart-Reclamation is a legacy alias kept for compatibility, equivalent to Toolbox-Reclamation
 - Settings-[SettingsName] task types include Settings-ConnectAddress, Settings-Stage1
 - Settings series tasks still execute sequentially rather than immediately, queuing behind previous tasks
 - Multiple immediate execution tasks also execute in issued order, though since these tasks execute quickly, their order generally doesn't matter

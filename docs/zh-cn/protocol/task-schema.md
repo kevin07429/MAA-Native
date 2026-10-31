@@ -7,12 +7,12 @@ icon: material-symbols:task
 
 `resource/tasks` 的使用方法及各字段说明
 
-::: tip
-推荐使用 [Visual Studio Code](https://code.visualstudio.com/) 并安装 [Maa Pipeline Support](https://marketplace.visualstudio.com/items?itemName=nekosu.maa-support) 扩展以实现高效编辑，详情请查阅扩展主页和[文档](../develop/vsc-ext-tutorial.md)
+::: tip  
+推荐使用 [Visual Studio Code](https://code.visualstudio.com/) 并安装 [Maa Pipeline Support](https://marketplace.visualstudio.com/items?itemName=nekosu.maa-support) 扩展以实现高效编辑，详情请查阅扩展主页和[文档](../develop/vsc-ext-tutorial.md)  
 :::
 
-::: warning
-JSON 文件是不支持注释的，文本中的注释仅用于演示，请勿直接复制使用
+::: warning  
+JSON 文件是不支持注释的，文本中的注释仅用于演示，请勿直接复制使用  
 :::
 
 ## 完整字段一览
@@ -55,6 +55,7 @@ JSON 文件是不支持注释的，文本中的注释仅用于演示，请勿直
                                             // 对于相同任务，第一次识别后第二次就不再识别：
                                             //     "next": [ "A", "B", "A", "A" ] -> "next": [ "A", "B" ]
                                             // 不允许 JustReturn 型任务位于非最后一项
+                                            // 列表中存在未定义的任务名时，会在识别开始前回传 UnknownTask 错误并停止整条任务链
 
         "maxTimes": 10,                     // 可选项，表示该任务最大执行次数
                                             // 不填写时默认无穷大

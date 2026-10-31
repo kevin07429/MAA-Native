@@ -1,4 +1,4 @@
-﻿// <copyright file="NativeUpdateService.cs" company="MaaAssistantArknights">
+// <copyright file="NativeUpdateService.cs" company="MaaAssistantArknights">
 // Part of the MaaWpfGui project, maintained by the MaaAssistantArknights team (Maa Team)
 // Copyright (C) 2021-2026 MaaAssistantArknights Contributors
 //
@@ -120,11 +120,11 @@ internal static class NativeUpdateService
             string? assetName = GetProgramAssetName(release, current, allowSameVersion);
             if (assetName is null)
             {
-                settings.NewVersionFoundInfo = LocalizationHelper.GetString("AlreadyLatest");
+                settings.NewVersionFoundInfo = LocalizationHelper.GetString("Settings.Update.AlreadyLatest");
                 return CheckUpdateRetT.AlreadyLatest;
             }
             string tag = release["tag_name"]!.Value<string>()!;
-            settings.NewVersionFoundInfo = $"{LocalizationHelper.GetString("NewVersionFoundTitle")}: {tag}";
+            settings.NewVersionFoundInfo = $"{LocalizationHelper.GetString("VersionUpdate.NewVersionFound.Title")}: {tag}";
             var assets = (JArray)release["assets"]!;
             var asset = assets.First(item => item["name"]!.Value<string>() == assetName);
             var checksum = assets.FirstOrDefault(item => item["name"]?.Value<string>() == assetName + ".sha256");
@@ -141,7 +141,7 @@ internal static class NativeUpdateService
             string folder = Path.Combine(PathsHelper.CacheDir, "native-update");
             Directory.CreateDirectory(folder);
             temporary = Path.Combine(folder, assetName + ".download");
-            OutputDownloadProgress(LocalizationHelper.GetString("NewVersionFoundDescDownloadingWithGlobalSource") + " " + tag, downloading: true);
+            OutputDownloadProgress(LocalizationHelper.GetString("VersionUpdate.NewVersionDownloading.GlobalSource") + " " + tag, downloading: true);
             if (!await Instances.HttpService.DownloadFileAsync(GetAssetUri(asset), temporary))
             {
                 return CheckUpdateRetT.UpdatePackageDownloadFailed;
@@ -174,13 +174,13 @@ internal static class NativeUpdateService
                 }
             }
             Instances.VersionUpdateDialogViewModel.UpdateTag = tag;
-            OutputDownloadProgress(LocalizationHelper.GetString("NewVersionDownloadCompletedTitle"), downloading: false);
+            OutputDownloadProgress(LocalizationHelper.GetString("VersionUpdate.NewVersionDownloadCompleted.Title"), downloading: false);
             return CheckUpdateRetT.OK;
         }
         catch (Exception exception)
         {
             _logger.Error(exception, "Native GitHub update failed");
-            OutputDownloadProgress(LocalizationHelper.GetString("NewVersionDetectFailedTitle"), downloading: false);
+            OutputDownloadProgress(LocalizationHelper.GetString("VersionUpdate.NewVersionDetectFailed.Title"), downloading: false);
             return CheckUpdateRetT.NetworkError;
         }
         finally
