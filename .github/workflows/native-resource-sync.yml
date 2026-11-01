@@ -1,0 +1,83 @@
+name: Sync Official Resources
+
+on:
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: native-resource-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository == 'kevin07429/MAA-Native'
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 90
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: native
+          fetch-depth: 0
+          submodules: false
+      - name: Fetch official development branch
+        shell: pwsh
+        run: |
+          git remote add upstream https://github.com/MaaAssistantArknights/MaaAssistantArknights.git
+          git fetch --no-tags upstream dev-v2:refs/remotes/upstream/dev-v2
+          if ($LASTEXITCODE -ne 0) { throw 'Official upstream fetch failed' }
+      - name: Prepare resource merge and change report
+        id: prepare
+        shell: pwsh
+        run: python tools/native-release/sync_resources.py prepare
+      - name: Initialize build dependencies
+        if: steps.prepare.outputs.changed == 'true'
+        shell: bash
+        run: bash .github/scripts/sync-optional-submodules.sh --init --depth 1 src/MaaUtils 3rdparty/EmulatorExtras
+      - uses: actions/setup-dotnet@v6
+        if: steps.prepare.outputs.changed == 'true'
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build and verify resources with the current native program
+        if: steps.prepare.outputs.changed == 'true'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $content = Get-Content src/MaaCore/CMakeLists.txt -Raw
+          $version = [regex]::Match($content, 'set\(NATIVE_APP_VERSION "(v[0-9]+\.[0-9]+\.[0-9]+-native\.[0-9]+)"').Groups[1].Value
+          if (-not $version) { throw 'Could not determine the native program version' }
+          .github/scripts/build-native.ps1 -Version $version
+          if ($LASTEXITCODE -ne 0) { throw 'Native build verification failed' }
+          # Also check the exact candidate tree, without the MaaResource mirror overlay.
+          New-Item -ItemType Directory build-native/resource-candidate | Out-Null
+          Copy-Item -LiteralPath resource -Destination build-native/resource-candidate/resource -Recurse
+          $gui = (Resolve-Path build-native/gui-publish).Path
+          $candidate = (Resolve-Path build-native/resource-candidate/resource).Path
+          dotnet run --project tools/native-release/UpdateProtocolChecks/UpdateProtocolChecks.csproj "-p:NativeGuiDir=$gui" -- $gui $version $candidate
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate adaptation checks failed' }
+          python -c "import sys; sys.path.insert(0, 'tools'); from maa_core_eval import CoreEval; CoreEval(dll_dir='build-native/bin/Debug', resource='build-native/resource-candidate').close()"
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate Debug resource load failed' }
+      - name: Commit validated resources
+        if: steps.prepare.outputs.changed == 'true'
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python tools/native-release/sync_resources.py commit
+          if ($LASTEXITCODE -ne 0) { throw 'Resource commit validation failed' }
+          git push origin HEAD:native
+          if ($LASTEXITCODE -ne 0) { throw 'Branch changed or push failed; no force push will be used' }
+      - name: Preserve resource change report
+        if: always() && steps.prepare.outputs.changed == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: official-resource-change-report
+          path: |
+            RESOURCE_UPDATES.md
+            .github/native-resource-sync.json

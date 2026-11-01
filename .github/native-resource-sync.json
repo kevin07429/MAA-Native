@@ -1,0 +1,15 @@
+{
+  "upstream_commit": "9b759d11d4be537ea0a2623005b86963cae66529",
+  "resource_version": {
+    "activity": {
+      "name": "时间啊，向前！",
+      "time": 1793487600
+    },
+    "gacha": {
+      "pool": "将雪投火",
+      "time": 1793487600
+    },
+    "last_updated": "2026-11-01 02:09:20.000"
+  },
+  "initial_sync": "Manual merge of four upstream commits on 2026-11-01; code fix reviewed separately."
+}

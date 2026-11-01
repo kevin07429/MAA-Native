@@ -19,6 +19,14 @@ v6.21.0-native.4 合并官方 127 个提交，包含基建选人提速与识别�
 设置页的 ｢检查并下载程序更新｣ 使用本仓库，｢更新资源｣ 使用官方资源源。首次游戏介绍需要先关闭。
 程序不会因为下载完成而中断任务；应用程序更新会等待空闲并提示重启。
 
+## 自动同步官方资源
+
+仓库每 6 小时检查官方 dev-v2，也可在 Actions 手动运行 ｢Sync Official Resources｣。仅合并 `resource/` 与模板优化清单，先做三方合并、JSON 检查、当前手机适配版构建及 Debug 资源加载验证，通过后才提交到 native 分支。没有变化时跳过构建；冲突或验证失败时不提交，不强制覆盖。
+
+每次同步生成 [资源变更清单](RESOURCE_UPDATES.md)，列出资源版本、提交、文件与待检查的程序提交。程序代码和工作流不会被自动合并；有程序变更时仍需人工检查与发版。MAA 客户端继续从官方 MaaResource 更新资源，这个流程不自动发布程序安装包。
+
+English: ｢Sync Official Resources｣ checks upstream dev-v2 every six hours. Only game resources and the template optimization manifest are merged. Three-way conflicts and validation failures block commits. Changes must pass native build and Debug resource checks before a normal push. RESOURCE_UPDATES.md records the changes and program commits requiring review. This workflow does not merge program code or publish app releases; the client keeps using official MaaResource.
+
 ## 发布新版本
 
 在 Actions 中运行 ｢Publish MAA Native｣，填写版本号，例如 `v6.21.0-native.5`。发布流程从当前源码编译自包含 GUI、核心与更新器，生成完整包、程序更新包及 SHA256。
