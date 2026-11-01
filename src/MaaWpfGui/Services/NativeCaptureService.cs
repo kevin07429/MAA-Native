@@ -43,6 +43,22 @@ internal static class NativeCaptureService
 
     internal static void PrepareResources(string resourceDirectory)
     {
+        string strategyPath = Path.Combine(resourceDirectory, "roguelike", "BlackFlow", "strategy.json");
+        if (File.Exists(strategyPath))
+        {
+            var strategy = JsonNode.Parse(File.ReadAllText(strategyPath))!.AsObject();
+            if (!strategy.ContainsKey("last_reward_orders"))
+            {
+                using var defaultsStream = Assembly.GetExecutingAssembly().GetManifestResourceStream("NativeCapture.BlackFlowStrategy.json")!;
+                var defaults = JsonNode.Parse(defaultsStream)!.AsObject();
+                strategy["last_reward_orders"] = defaults["last_reward_orders"]!.DeepClone();
+                string strategyTemporary = strategyPath + ".native.tmp";
+                File.WriteAllText(strategyTemporary, strategy.ToJsonString());
+                File.Move(strategyTemporary, strategyPath, true);
+                _logger.Information("Added missing BlackFlow reward configuration for legacy resources");
+            }
+        }
+
         // Reapply local behavior after resource-only updates, without changing upstream assets.
         string path = Path.Combine(resourceDirectory, "config.json");
         var config = JsonNode.Parse(File.ReadAllText(path))!.AsObject();

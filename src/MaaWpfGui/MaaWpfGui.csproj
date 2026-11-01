@@ -97,6 +97,7 @@
   <ItemGroup>
     <AdditionalFiles Include="stylecop.json" />
     <EmbeddedResource Include="..\..\tools\wireless-native\maa-native-cap.jar" LogicalName="NativeCapture.MaaNativeCap.jar" />
+    <EmbeddedResource Include="..\..\resource\roguelike\BlackFlow\strategy.json" LogicalName="NativeCapture.BlackFlowStrategy.json" />
     <Resource Include="newlogo.ico" />
     <!--  Internal 为内部资源（喜报等，嵌入）；Wallpapers 为用户可选壁纸，复制到输出目录供下拉列表读取  -->
     <Resource Include="Res\Backgrounds\Internal\**\*" />

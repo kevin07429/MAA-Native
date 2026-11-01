@@ -40,6 +40,18 @@ if (args.Length > 2) {
         if(!templates.Contains(Path.GetRelativePath(Path.Combine(resource,"template","UiTheme"),terminal).Replace('\\','/')))
             throw new Exception("A current or legacy terminal variant was omitted");
     Console.WriteLine("PASS: generated Roguelike templates exist and include current/legacy terminal variants");
+    string strategyPath = Path.Combine(resource,"roguelike","BlackFlow","strategy.json");
+    string originalStrategy = File.ReadAllText(strategyPath);
+    var legacyStrategy = JObject.Parse(originalStrategy);
+    var expectedRewards = legacyStrategy["last_reward_orders"]!.DeepClone();
+    legacyStrategy.Remove("last_reward_orders");
+    File.WriteAllText(strategyPath,legacyStrategy.ToString());
+    prepare.Invoke(null,[resource]);
+    var migrated = JObject.Parse(File.ReadAllText(strategyPath));
+    if(!JToken.DeepEquals(migrated["last_reward_orders"],expectedRewards) || legacyStrategy.Properties().Any(p => !JToken.DeepEquals(p.Value,migrated[p.Name])))
+        throw new Exception("Legacy resource migration lost settings or required reward defaults");
+    File.WriteAllText(strategyPath,originalStrategy);
+    Console.WriteLine("PASS: legacy BlackFlow resource defaults restored without overwriting existing settings");
 }
 var service = assembly.GetType("MaaWpfGui.Services.NativeUpdateService", true)!;
 var resolve = service.GetMethod("GetProgramAssetName", BindingFlags.Static | BindingFlags.NonPublic)!;
