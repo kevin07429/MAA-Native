@@ -29,6 +29,17 @@ if (args.Length > 1 && assembly.GetCustomAttribute<AssemblyInformationalVersionA
 if (args.Length > 2) {
     var prepare=assembly.GetType("MaaWpfGui.Services.NativeCaptureService",true)!.GetMethod("PrepareResources",BindingFlags.Static|BindingFlags.NonPublic)!;
     prepare.Invoke(null,[Path.GetFullPath(args[2])]);
+    string resource = Path.GetFullPath(args[2]);
+    var tasks = JObject.Parse(File.ReadAllText(Path.Combine(resource,"tasks","Roguelike","base.json")));
+    var templates = tasks["Roguelike"]!["template"]!.Values<string>().ToHashSet();
+    var files = Directory.EnumerateFiles(Path.Combine(resource,"template"),"*.png",SearchOption.AllDirectories)
+        .Select(path => path.Replace('\\','/')).ToArray();
+    if (templates.Count == 0 || templates.Any(name => !files.Any(path => path.EndsWith("/"+name,StringComparison.Ordinal))))
+        throw new Exception("Prepared Roguelike task references missing templates");
+    foreach(string terminal in Directory.EnumerateFiles(Path.Combine(resource,"template","UiTheme"),"Terminal*.png",SearchOption.AllDirectories))
+        if(!templates.Contains(Path.GetRelativePath(Path.Combine(resource,"template","UiTheme"),terminal).Replace('\\','/')))
+            throw new Exception("A current or legacy terminal variant was omitted");
+    Console.WriteLine("PASS: generated Roguelike templates exist and include current/legacy terminal variants");
 }
 var service = assembly.GetType("MaaWpfGui.Services.NativeUpdateService", true)!;
 var resolve = service.GetMethod("GetProgramAssetName", BindingFlags.Static | BindingFlags.NonPublic)!;

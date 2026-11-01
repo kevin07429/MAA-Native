@@ -145,15 +145,15 @@ internal static class NativeCaptureService
         if (File.Exists(roguePath))
         {
             var tasks = JsonNode.Parse(File.ReadAllText(roguePath))!.AsObject();
-            var templates = new JsonArray("Dark/Terminal.png", "SwitchTheme@ToggleSettingsMenu.png");
+            var templates = new JsonArray();
             string themeDirectory = Path.Combine(resourceDirectory, "template", "UiTheme");
-            foreach (string template in Directory.EnumerateFiles(themeDirectory, "Terminal.png", SearchOption.AllDirectories))
+            var availableTemplates = Directory.EnumerateFiles(themeDirectory, "Terminal*.png", SearchOption.AllDirectories)
+                .Concat(Directory.EnumerateFiles(themeDirectory, "SwitchTheme@ToggleSettingsMenu*.png", SearchOption.AllDirectories))
+                .OrderBy(path => path, StringComparer.Ordinal);
+            foreach (string template in availableTemplates)
             {
                 string relative = Path.GetRelativePath(themeDirectory, template).Replace('\\', '/');
-                if (relative != "Dark/Terminal.png")
-                {
-                    templates.Add(relative);
-                }
+                templates.Add(relative);
             }
 
             tasks["Roguelike"]!["template"] = templates;
