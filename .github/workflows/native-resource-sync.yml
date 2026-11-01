@@ -28,6 +28,8 @@ jobs:
       - name: Fetch official development branch
         shell: pwsh
         run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git remote add upstream https://github.com/MaaAssistantArknights/MaaAssistantArknights.git
           git fetch --no-tags upstream dev-v2:refs/remotes/upstream/dev-v2
           if ($LASTEXITCODE -ne 0) { throw 'Official upstream fetch failed' }
