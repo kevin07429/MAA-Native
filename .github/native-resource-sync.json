@@ -1,6 +1,6 @@
 {
   "merge_mode": "resource_history_merge",
-  "upstream_commit": "3c469fb51a280eacfd58982a846afad42ca6705c",
+  "upstream_commit": "626a174b46f8eeea2b5fecc9e12706632f07d001",
   "previous_upstream_commit": "9b759d11d4be537ea0a2623005b86963cae66529",
   "updated_utc": "2026-11-01T07:51:53+00:00",
   "resource_version": {
@@ -12,7 +12,7 @@
       "pool": "将雪投火",
       "time": 1793487600
     },
-    "last_updated": "2026-11-01 07:00:00.102"
+    "last_updated": "2026-11-01 13:43:20.000"
   },
   "resource_files": [
     "resource/Arknights-Tile-Pos/act55side_10-activities-act55side-level_act55side_10.json",
@@ -24,5 +24,6 @@
       "title": "fix: TL-10 地图 view[1] 修复"
     }
   ],
-  "program_commits_not_merged": []
+  "program_commits_not_merged": [],
+  "manual_review": "Official v6.21.0 release and later November 1 fixes reviewed for native.5."
 }

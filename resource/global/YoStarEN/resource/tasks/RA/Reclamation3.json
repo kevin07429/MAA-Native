@@ -27,6 +27,14 @@
         "text": ["ploy the", "Gather"],
         "roi": [400, 54, 480, 38]
     },
+    "RelaunchAnchor@RA@RA1-DeployGatheringBaseSwipe": {
+        "preDelay": 500,
+        "specialParams": [600, 0, 37, 1]
+    },
+    "RelaunchAnchor@RA@RA1-DeployOperatorSwipe": {
+        "preDelay": 250,
+        "specialParams": [600, 0, 37, 1]
+    },
     "RelaunchAnchor@RA@RA1-DeployOperatorDirection": {
         "roi": [50, 115, 90, 25],
         "text": ["Rosmontis"]
@@ -92,7 +100,8 @@
         "text": ["Add Operat"]
     },
     "RelaunchAnchor@RA@RA4-AddHelp": {
-        "text": ["ct Support"]
+        "text": ["ct Support"],
+        "roi": [886, 21, 82, 28]
     },
     "RelaunchAnchor@RA@RA4-EW-Common": {
         "text": ["Wis", "adel"]
