@@ -63,8 +63,8 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           python tools/native-release/sync_resources.py commit
           if ($LASTEXITCODE -ne 0) { throw 'Resource commit validation failed' }
-          git push origin HEAD:native
-          if ($LASTEXITCODE -ne 0) { throw 'Branch changed or push failed; no force push will be used' }
+          python tools/native-release/sync_resources.py publish
+          if ($LASTEXITCODE -ne 0) { throw 'Resource publication failed; no force push will be used' }
       - name: Preserve resource change report
         if: always() && steps.prepare.outputs.changed == 'true'
         uses: actions/upload-artifact@v7

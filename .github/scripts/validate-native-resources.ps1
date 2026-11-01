@@ -16,4 +16,7 @@ Copy-Item -LiteralPath resource -Destination build-native/resource-candidate/res
 $gui=(Resolve-Path build-native/gui-publish).Path
 $candidate=(Resolve-Path build-native/resource-candidate/resource).Path
 Invoke-Checked { dotnet run --project tools/native-release/UpdateProtocolChecks/UpdateProtocolChecks.csproj "-p:NativeGuiDir=$gui" -- $gui $Version $candidate }
-Invoke-Checked { python -c "import sys; sys.path.insert(0, 'tools'); from maa_core_eval import CoreEval; CoreEval(dll_dir='build-native/bin/Debug', resource='build-native/resource-candidate').close()" }
+foreach($client in @('CN','YoStarEN','YoStarJP','YoStarKR','txwy')){
+ Write-Output "Checking Debug resources for $client"
+ Invoke-Checked { python -c "import sys; sys.path.insert(0, 'tools'); from maa_core_eval import CoreEval; CoreEval(dll_dir='build-native/bin/Debug', resource='build-native/resource-candidate', global_client=None if sys.argv[1]=='CN' else sys.argv[1]).close()" $client }
+}

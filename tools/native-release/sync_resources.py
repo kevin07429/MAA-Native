@@ -41,11 +41,20 @@ def pending_program_commits(target):
     entries = []
     for sha in git("rev-list", "--reverse", "HEAD.." + target).decode().splitlines():
         names = (
-            git("diff-tree", "--root", "--no-commit-id", "--name-only", "-r", "-m", sha)
+            git(
+                "diff-tree",
+                "--root",
+                "--no-commit-id",
+                "--name-only",
+                "-z",
+                "-r",
+                "-m",
+                sha,
+            )
             .decode()
-            .splitlines()
+            .split("\0")
         )
-        if any(not resource_path(p) for p in names):
+        if any(p and not resource_path(p) for p in names):
             entries.append(
                 {
                     "sha": sha,
@@ -114,9 +123,18 @@ def prepare(upstream):
     commits = []
     for sha in git("rev-list", "--reverse", base + ".." + target).decode().splitlines():
         names = (
-            git("diff-tree", "--root", "--no-commit-id", "--name-only", "-r", "-m", sha)
+            git(
+                "diff-tree",
+                "--root",
+                "--no-commit-id",
+                "--name-only",
+                "-z",
+                "-r",
+                "-m",
+                sha,
+            )
             .decode()
-            .splitlines()
+            .split("\0")
         )
         entry = {
             "sha": sha,
@@ -190,11 +208,51 @@ def commit():
     if git("diff", "--name-only").strip():
         raise RuntimeError("Unstaged tracked changes appeared during validation")
     git("commit", "-m", "chore: sync official resources through " + plan["target"][:12])
+    plan["validated_commit"] = git("rev-parse", "HEAD").decode().strip()
+    Path(PLAN).write_text(json.dumps(plan), encoding="utf-8")
+
+
+def publish():
+    plan = json.loads(Path(PLAN).read_text(encoding="utf-8"))
+    if git("rev-parse", "HEAD").decode().strip() != plan["validated_commit"]:
+        raise RuntimeError("Validated commit changed before publication")
+    if git("status", "--porcelain", "--untracked-files=no").strip():
+        raise RuntimeError("Tracked files changed after validation")
+    for _ in range(3):
+        result = subprocess.run(
+            ["git", "push", "origin", "HEAD:native"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if result.returncode == 0:
+            print(result.stderr.decode("utf-8", errors="replace"))
+            return
+        git("fetch", "--no-tags", "origin", "native:refs/remotes/origin/native")
+        remote = git("rev-parse", "origin/native").decode().strip()
+        git("merge-base", "--is-ancestor", plan["head"], remote)
+        remote_paths = changed_paths(plan["head"], remote)
+        if any(p != "README.md" and not p.startswith("docs/") for p in remote_paths):
+            raise RuntimeError(
+                "Concurrent program or resource changes require fresh validation; nothing was overwritten"
+            )
+        git(
+            "merge",
+            "--no-edit",
+            "-m",
+            "Merge concurrent documentation before resource sync",
+            remote,
+        )
+        if any(
+            not resource_path(p) and p not in (STATE, REPORT)
+            for p in changed_paths(remote, "HEAD")
+        ):
+            raise RuntimeError("Unexpected changes after documentation merge")
+    raise RuntimeError("Normal push failed repeatedly; no force push was attempted")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("phase", choices=["prepare", "validate", "commit"])
+    parser.add_argument("phase", choices=["prepare", "validate", "commit", "publish"])
     parser.add_argument("--upstream", default="upstream/dev-v2")
     args = parser.parse_args()
     if args.phase == "prepare":
@@ -208,8 +266,10 @@ def main():
         print(summary)
     elif args.phase == "validate":
         print("Validated resource files:", len(validate()))
-    else:
+    elif args.phase == "commit":
         commit()
+    else:
+        publish()
 
 
 if __name__ == "__main__":

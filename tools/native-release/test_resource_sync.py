@@ -131,7 +131,7 @@ class ResourceSyncTests(unittest.TestCase):
 
     def test_pure_resource_interval_retains_upstream_history(self):
         self.git("checkout", "official")
-        self.write("resource/new.json", '{"pure_resource":true}')
+        self.write("resource/干员.json", '{"pure_resource":true}')
         self.save("resource only")
         target = self.git("rev-parse", "HEAD")
         self.git("checkout", "native")
@@ -141,6 +141,79 @@ class ResourceSyncTests(unittest.TestCase):
         sync.commit()
         self.git("merge-base", "--is-ancestor", target, "HEAD")
         self.assertEqual(Path("src/native.txt").read_text(), "keep native feature")
+
+    def test_mixed_interval_supports_binary_updates_and_resource_deletions(self):
+        self.write("resource/template.png", "old image bytes")
+        self.save("base image")
+        self.git("branch", "-f", "official", "HEAD")
+        self.git("checkout", "official")
+        Path("resource/template.png").write_bytes(b"\x89PNG\x00\xff\x01new")
+        Path("resource/task.json").unlink()
+        self.write("src/core.txt", "do not merge this program change")
+        self.save("binary resource, deletion, and program change")
+        self.git("checkout", "native")
+        self.assertTrue(sync.prepare("official")[0])
+        sync.commit()
+        self.assertEqual(
+            Path("resource/template.png").read_bytes(), b"\x89PNG\x00\xff\x01new"
+        )
+        self.assertFalse(Path("resource/task.json").exists())
+        self.assertEqual(Path("src/core.txt").read_text(), "base")
+
+    def concurrent_update(self, name, content):
+        remote = self.root / ".git" / "remote.git"
+        self.git("init", "--bare", str(remote))
+        self.git("remote", "add", "origin", str(remote))
+        self.git("push", "origin", "native")
+        self.update_official()
+        sync.prepare("official")
+        sync.commit()
+        clone = self.root / ".git" / "concurrent"
+        self.git("clone", "-b", "native", str(remote), str(clone))
+        for args in [
+            ("config", "user.name", "Concurrent Test"),
+            ("config", "user.email", "test@example.invalid"),
+        ]:
+            self.git("-C", str(clone), *args)
+        path = clone / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        self.git("-C", str(clone), "add", ".")
+        self.git("-C", str(clone), "commit", "-m", "concurrent change")
+        self.git("-C", str(clone), "push", "origin", "native")
+
+    def test_publication_preserves_concurrent_readme(self):
+        self.concurrent_update("README.md", "keep this user documentation")
+        sync.publish()
+        self.assertEqual(
+            self.git("show", "origin/native:README.md"), "keep this user documentation"
+        )
+        self.assertEqual(
+            json.loads(self.git("show", "origin/native:resource/task.json"))["value"],
+            "updated",
+        )
+        self.assertEqual(self.git("show", "origin/native:src/core.txt"), "base")
+
+    def test_publication_blocks_concurrent_program_change(self):
+        self.concurrent_update("src/core.txt", "new concurrent program")
+        with self.assertRaises(RuntimeError):
+            sync.publish()
+        self.assertEqual(
+            self.git("show", "origin/native:src/core.txt"), "new concurrent program"
+        )
+        self.assertEqual(
+            json.loads(self.git("show", "origin/native:resource/task.json"))["value"],
+            "base",
+        )
+
+    def test_publication_blocks_concurrent_resource_change(self):
+        self.concurrent_update("resource/task.json", '{"value":"concurrent resource"}')
+        with self.assertRaises(RuntimeError):
+            sync.publish()
+        self.assertEqual(
+            json.loads(self.git("show", "origin/native:resource/task.json"))["value"],
+            "concurrent resource",
+        )
 
 
 if __name__ == "__main__":
