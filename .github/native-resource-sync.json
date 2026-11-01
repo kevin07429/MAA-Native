@@ -1,5 +1,8 @@
 {
-  "upstream_commit": "9b759d11d4be537ea0a2623005b86963cae66529",
+  "merge_mode": "resource_history_merge",
+  "upstream_commit": "3c469fb51a280eacfd58982a846afad42ca6705c",
+  "previous_upstream_commit": "9b759d11d4be537ea0a2623005b86963cae66529",
+  "updated_utc": "2026-11-01T07:51:53+00:00",
   "resource_version": {
     "activity": {
       "name": "时间啊，向前！",
@@ -9,7 +12,17 @@
       "pool": "将雪投火",
       "time": 1793487600
     },
-    "last_updated": "2026-11-01 02:09:20.000"
+    "last_updated": "2026-11-01 07:00:00.102"
   },
-  "initial_sync": "Manual merge of four upstream commits on 2026-11-01; code fix reviewed separately."
+  "resource_files": [
+    "resource/Arknights-Tile-Pos/act55side_10-activities-act55side-level_act55side_10.json",
+    "resource/version.json"
+  ],
+  "resource_commits": [
+    {
+      "sha": "3c469fb51a280eacfd58982a846afad42ca6705c",
+      "title": "fix: TL-10 地图 view[1] 修复"
+    }
+  ],
+  "program_commits_not_merged": []
 }
