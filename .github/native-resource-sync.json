@@ -1,8 +1,8 @@
 {
-  "merge_mode": "resource_history_merge",
-  "upstream_commit": "626a174b46f8eeea2b5fecc9e12706632f07d001",
-  "previous_upstream_commit": "9b759d11d4be537ea0a2623005b86963cae66529",
-  "updated_utc": "2026-11-01T07:51:53+00:00",
+  "merge_mode": "resource_patch_with_program_commits_excluded",
+  "upstream_commit": "296c32d7e8d75b648772a65c2db9ae77c26b8640",
+  "previous_upstream_commit": "626a174b46f8eeea2b5fecc9e12706632f07d001",
+  "updated_utc": "2026-11-01T17:58:49+00:00",
   "resource_version": {
     "activity": {
       "name": "时间啊，向前！",
@@ -15,15 +15,91 @@
     "last_updated": "2026-11-01 13:43:20.000"
   },
   "resource_files": [
-    "resource/Arknights-Tile-Pos/act55side_10-activities-act55side-level_act55side_10.json",
-    "resource/version.json"
+    "resource/global/YoStarEN/resource/tasks/RA/Reclamation3.json",
+    "resource/global/YoStarJP/resource/tasks/RA/Reclamation3.json",
+    "resource/global/YoStarKR/resource/tasks/RA/Reclamation3.json",
+    "resource/tasks/MiniGame/WartimePressCommittee.json",
+    "resource/tasks/RA/Reclamation3.json",
+    "resource/tasks/Stages/TL.json",
+    "resource/tasks/UiTheme/SwitchTheme.json",
+    "resource/tasks/UiTheme/SwitchThemeByName.json",
+    "resource/template/MiniGame/WartimePressCommittee/MiniGame@WartimePressCommittee@Max.png",
+    "resource/template/MiniGame/WartimePressCommittee/MiniGame@WartimePressCommittee@MaxButton.png",
+    "resource/template/MiniGame/WartimePressCommittee/MiniGame@WartimePressCommittee@NextPage.png",
+    "resource/template/StageNavigation/SideStory/TL/TLChapterToTL2.png",
+    "resource/template/UiTheme/SwitchTheme/SwitchTheme@CancelThemeChange-v2.png",
+    "resource/template/UiTheme/SwitchTheme/SwitchTheme@CancelThemeChange.png",
+    "resource/template/UiTheme/SwitchTheme/SwitchTheme@ChangeTheme-v2.png",
+    "resource/template/UiTheme/SwitchTheme/SwitchTheme@ChangeTheme.png",
+    "resource/template/UiTheme/SwitchTheme/SwitchTheme@ConfirmThemeChange-v2.png",
+    "resource/template/UiTheme/SwitchTheme/SwitchTheme@ConfirmThemeChange.png",
+    "resource/template/UiTheme/SwitchTheme/SwitchTheme@SelectLightTheme-v2.png",
+    "resource/template/UiTheme/SwitchTheme/SwitchTheme@SelectLightTheme.png",
+    "resource/template/UiTheme/SwitchTheme/SwitchTheme@ToggleSettingsMenu.png",
+    "tools/OptimizeTemplates/optimize_templates.json"
   ],
   "resource_commits": [
     {
-      "sha": "3c469fb51a280eacfd58982a846afad42ca6705c",
-      "title": "fix: TL-10 地图 view[1] 修复"
+      "sha": "a03ca9e6041e9eb472ee5bfcf7cb30b48b8941dc",
+      "title": "fix: SwitchTheme 恢复未缩放原图，仅齿轮保留 v2 模板"
+    },
+    {
+      "sha": "b641572ad22def156b03122e7f36ea9303aea74d",
+      "title": "feat: 支持活动通关后的双形态模板"
+    },
+    {
+      "sha": "b6885ea86a3585e98fbc9942eb063c34ef479bb6",
+      "title": "chore: Auto Templates Optimization"
+    },
+    {
+      "sha": "84771dcc8b4178dfd24899c6748d2c1ab9c54bae",
+      "title": "fix: RA3 交付木材 8+ 正则表达式 (#18996)"
+    },
+    {
+      "sha": "ed4603ea92bd27d774666f29780952fb8c754c45",
+      "title": "chore: 添加 TL-4 搓玉关卡导航 (#18994)"
+    },
+    {
+      "sha": "c635d452edcb53e75d889636dc7a854bdb9993b1",
+      "title": "feat(Minigame): 战时新闻委员会 (#18991)"
+    },
+    {
+      "sha": "3727f7d75800592df59aec3ef2d168f718a8dbe5",
+      "title": "chore: Auto Update Game Resources - 2026-11-01"
+    },
+    {
+      "sha": "914f90ca554ff5b0ea7b9c444474c67cbebda6ec",
+      "title": "chore: optimize templates"
+    },
+    {
+      "sha": "d8a98c72a45618f24e9c55fa014809d5ade6bf52",
+      "title": "Release v6.21.1 (#18987)"
     }
   ],
-  "program_commits_not_merged": [],
-  "manual_review": "Official v6.21.0 release and later November 1 fixes reviewed for native.5."
+  "program_commits_not_merged": [
+    {
+      "sha": "2454195aa5ed64951d16d61f582d522d5fcfd8b4",
+      "title": "ci: bump actions/setup-python from 6 to 7 in /.github/workflows in the github-actions group (#18947)"
+    },
+    {
+      "sha": "c635d452edcb53e75d889636dc7a854bdb9993b1",
+      "title": "feat(Minigame): 战时新闻委员会 (#18991)"
+    },
+    {
+      "sha": "b33c819b1a15ce0f41c46cc5239804ccbf2a13f8",
+      "title": "fix: 战时新闻委员会本地化 key 补 TL 活动段"
+    },
+    {
+      "sha": "d9d220ea1b9f8d30bb31f979fba64fcd2f9877c3",
+      "title": "docs: 更新 v6.21.1 更新日志"
+    },
+    {
+      "sha": "d8a98c72a45618f24e9c55fa014809d5ade6bf52",
+      "title": "Release v6.21.1 (#18987)"
+    },
+    {
+      "sha": "296c32d7e8d75b648772a65c2db9ae77c26b8640",
+      "title": "ci: 仅允许 base 为 dev-v2 的 PR 触发 ci action"
+    }
+  ]
 }
