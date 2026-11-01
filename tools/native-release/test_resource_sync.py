@@ -129,6 +129,19 @@ class ResourceSyncTests(unittest.TestCase):
         state = json.loads(Path(sync.STATE).read_text(encoding="utf-8"))
         self.assertEqual(len(state["program_commits_not_merged"]), 1)
 
+    def test_pure_resource_interval_retains_upstream_history(self):
+        self.git("checkout", "official")
+        self.write("resource/new.json", '{"pure_resource":true}')
+        self.save("resource only")
+        target = self.git("rev-parse", "HEAD")
+        self.git("checkout", "native")
+        self.write("src/native.txt", "keep native feature")
+        self.save("native feature")
+        self.assertTrue(sync.prepare("official")[0])
+        sync.commit()
+        self.git("merge-base", "--is-ancestor", target, "HEAD")
+        self.assertEqual(Path("src/native.txt").read_text(), "keep native feature")
+
 
 if __name__ == "__main__":
     unittest.main()

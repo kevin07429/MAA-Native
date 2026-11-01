@@ -52,17 +52,7 @@ jobs:
           $content = Get-Content src/MaaCore/CMakeLists.txt -Raw
           $version = [regex]::Match($content, 'set\(NATIVE_APP_VERSION "(v[0-9]+\.[0-9]+\.[0-9]+-native\.[0-9]+)"').Groups[1].Value
           if (-not $version) { throw 'Could not determine the native program version' }
-          .github/scripts/build-native.ps1 -Version $version
-          if ($LASTEXITCODE -ne 0) { throw 'Native build verification failed' }
-          # Also check the exact candidate tree, without the MaaResource mirror overlay.
-          New-Item -ItemType Directory build-native/resource-candidate | Out-Null
-          Copy-Item -LiteralPath resource -Destination build-native/resource-candidate/resource -Recurse
-          $gui = (Resolve-Path build-native/gui-publish).Path
-          $candidate = (Resolve-Path build-native/resource-candidate/resource).Path
-          dotnet run --project tools/native-release/UpdateProtocolChecks/UpdateProtocolChecks.csproj "-p:NativeGuiDir=$gui" -- $gui $version $candidate
-          if ($LASTEXITCODE -ne 0) { throw 'Candidate adaptation checks failed' }
-          python -c "import sys; sys.path.insert(0, 'tools'); from maa_core_eval import CoreEval; CoreEval(dll_dir='build-native/bin/Debug', resource='build-native/resource-candidate').close()"
-          if ($LASTEXITCODE -ne 0) { throw 'Candidate Debug resource load failed' }
+          .github/scripts/validate-native-resources.ps1 -Version $version
       - name: Commit validated resources
         if: steps.prepare.outputs.changed == 'true'
         shell: pwsh

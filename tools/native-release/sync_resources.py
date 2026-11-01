@@ -99,7 +99,13 @@ def prepare(upstream):
         raise RuntimeError(
             "Resource state differs without a new upstream patch; manual review is required"
         )
-    git("apply", "--3way", "--index", "--whitespace=nowarn", "-", input=patch)
+    if program:
+        git("apply", "--3way", "--index", "--whitespace=nowarn", "-", input=patch)
+        merge_mode = "resource_patch_with_program_commits_excluded"
+    else:
+        # A pure resource interval can retain upstream ancestry as a normal merge.
+        git("merge", "--no-commit", "--no-ff", target)
+        merge_mode = "resource_history_merge"
     if git("ls-files", "--unmerged").strip():
         raise RuntimeError("Resource merge conflict; no commit or push was performed")
     paths = validate()
@@ -123,6 +129,7 @@ def prepare(upstream):
         timespec="seconds"
     )
     result = {
+        "merge_mode": merge_mode,
         "upstream_commit": target,
         "previous_upstream_commit": base,
         "updated_utc": timestamp,
