@@ -43,7 +43,9 @@ if (args.Length > 2) {
     string strategyPath = Path.Combine(resource,"roguelike","BlackFlow","strategy.json");
     string originalStrategy = File.ReadAllText(strategyPath);
     var legacyStrategy = JObject.Parse(originalStrategy);
-    var expectedRewards = legacyStrategy["last_reward_orders"]!.DeepClone();
+    using var defaultStrategyStream = assembly.GetManifestResourceStream("NativeCapture.BlackFlowStrategy.json")!;
+    using var defaultStrategyReader = new StreamReader(defaultStrategyStream);
+    var expectedRewards = JObject.Parse(defaultStrategyReader.ReadToEnd())["last_reward_orders"]!.DeepClone();
     legacyStrategy.Remove("last_reward_orders");
     File.WriteAllText(strategyPath,legacyStrategy.ToString());
     prepare.Invoke(null,[resource]);

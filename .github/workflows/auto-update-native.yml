@@ -1,0 +1,116 @@
+name: Auto Update and Publish MAA Native
+
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  push:
+    branches: [native]
+    paths:
+      - 'src/**'
+      - 'include/**'
+      - 'resource/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+      - 'CMakePresets.json'
+      - 'tools/wireless-native/**'
+      - 'tools/native-release/package_native.py'
+      - '.github/scripts/build-native.ps1'
+  workflow_dispatch:
+    inputs:
+      check_only:
+        description: 'Only inspect changes without publishing'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: native-automatic-update
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    if: github.repository == 'kevin07429/MAA-Native'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.inspect.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: native
+          sparse-checkout: .github/scripts
+      - id: inspect
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHECK_ONLY: ${{ inputs.check_only }}
+        run: |
+          if [ "$CHECK_ONLY" = true ]; then
+            python3 .github/scripts/auto-update-native.py inspect --check-only
+          else
+            python3 .github/scripts/auto-update-native.py inspect
+          fi
+  update:
+    needs: detect
+    if: needs.detect.outputs.changed == 'true'
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: native
+          fetch-depth: 0
+          submodules: false
+      - name: Merge upstream and allocate the next native version
+        id: prepare
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote add upstream https://github.com/MaaAssistantArknights/MaaAssistantArknights.git
+          git fetch --no-tags upstream dev-v2:refs/remotes/upstream/dev-v2
+          if ($LASTEXITCODE -ne 0) { throw 'Upstream fetch failed' }
+          python .github/scripts/auto-update-native.py prepare
+      - name: Initialize core dependencies
+        shell: bash
+        run: bash .github/scripts/sync-optional-submodules.sh --init --depth 1 src/MaaUtils 3rdparty/EmulatorExtras
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build and verify the complete release
+        shell: pwsh
+        env:
+          NATIVE_VERSION: ${{ steps.prepare.outputs.version }}
+        run: |
+          python tools/native-release/test_auto_update.py
+          if ($LASTEXITCODE -ne 0) { throw 'Automatic publishing checks failed' }
+          python tools/CheckLocalizationReferences.py
+          if ($LASTEXITCODE -ne 0) { throw 'Localization check failed' }
+          .github/scripts/build-native.ps1 -Version $env:NATIVE_VERSION
+          if ($LASTEXITCODE -ne 0) { throw 'Build verification failed' }
+          python .github/scripts/auto-update-native.py previous-resources
+          if ($LASTEXITCODE -ne 0) { throw 'Previous release resource extraction failed' }
+          $gui=(Resolve-Path build-native/gui-publish).Path
+          $previous=(Resolve-Path build-native/previous-client/resource).Path
+          dotnet run --project tools/native-release/UpdateProtocolChecks/UpdateProtocolChecks.csproj "-p:NativeGuiDir=$gui" -- $gui $env:NATIVE_VERSION $previous
+          if ($LASTEXITCODE -ne 0) { throw 'Previous release migration check failed' }
+          foreach($folder in @(("build-native/assets/portable-" + $env:NATIVE_VERSION), 'build-native/previous-client')) {
+            foreach($client in @('CN','YoStarEN','YoStarJP','YoStarKR','txwy')) {
+              python -c "import sys;sys.path.insert(0,'tools');from maa_core_eval import CoreEval;CoreEval(dll_dir='build-native/bin/Debug',resource=sys.argv[1],global_client=None if sys.argv[2]=='CN' else sys.argv[2]).close()" $folder $client
+              if ($LASTEXITCODE -ne 0) { throw "Resource compatibility failed: $folder $client" }
+            }
+          }
+      - name: Publish validated source and all installation assets
+        shell: pwsh
+        run: python .github/scripts/auto-update-native.py publish
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: automatic-native-update-report
+          path: RESOURCE_UPDATES.md

@@ -902,6 +902,7 @@ jobs:
 
   native-release:
     # Shared native packaging preserves wallpapers in program updates and includes them in full packages.
+    # Automatic upstream releases also use build-native.ps1 and the same package verification.
     if: github.repository == 'kevin07429/MAA-Native' && startsWith(github.ref, 'refs/tags/v')
     uses: ./.github/workflows/native-release.yml
     with:

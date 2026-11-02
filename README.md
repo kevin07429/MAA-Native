@@ -1,6 +1,6 @@
 # MAA Native
 
-基于 [MAA](https://github.com/MaaAssistantArknights/MaaAssistantArknights) dev-v2（v6.21.0-beta.3 后，`110c5ffc`）的非官方 Windows x64 手机适配版。
+基于 [MAA](https://github.com/MaaAssistantArknights/MaaAssistantArknights) dev-v2 的非官方 Windows x64 手机适配版。
 
 - 保留手机原生分辨率，游戏异形屏 UI 适配为 0；USB 与无线 ADB 使用内置快速截图通道。
 - 自适应识别与点击、会客室线索和基建导航修复、当前任务暂停/恢复。
@@ -13,13 +13,15 @@
 设置页的 ｢检查并下载程序更新｣ 使用本仓库，｢更新资源｣ 使用官方资源源。首次游戏介绍需要先关闭。
 程序不会因为下载完成而中断任务；应用程序更新会等待空闲并提示重启。
 
-## 自动同步官方资源
+## 自动更新与发布
 
-仓库每 6 小时检查官方 dev-v2，也可在 Actions 手动运行 ｢Sync Official Resources｣。仅合并 `resource/` 与模板优化清单，先做三方合并、JSON 检查、当前手机适配版构建及 Debug 资源加载验证，通过后才提交到 native 分支。没有变化时跳过构建；冲突或验证失败时不提交，不强制覆盖。
+GitHub Actions 每 15 分钟检查官方 dev-v2；本仓库 native 分支的程序或资源变动在推送后立即触发。也可手动运行 [Auto Update and Publish MAA Native](https://github.com/kevin07429/MAA-Native/actions/workflows/auto-update-native.yml)。GitHub 定时任务可能排队延迟。
 
-每次同步生成 [资源变更清单](RESOURCE_UPDATES.md)，列出资源版本、提交、文件与待检查的程序提交。程序代码和工作流不会被自动合并；有程序变更时仍需人工检查与发版。MAA 客户端继续从官方 MaaResource 更新资源，这个流程不自动发布程序安装包。
+检测到更新后自动合并官方程序与资源，递增 native 版本，编译 Debug / Release 核心与 Windows x64 自包含界面，验证手机适配、暂停/恢复、更新协议及五个客户端的新旧资源兼容性。通过后提交源码并发布完整包、程序更新包与 SHA256 校验文件；上传校验通过才公开新版本。合并冲突或验证失败会停止发布，保留现有正式版。
 
-English: ｢Sync Official Resources｣ checks upstream dev-v2 every six hours. Only game resources and the template optimization manifest are merged. Three-way conflicts and validation failures block commits. Changes must pass native build and Debug resource checks before a normal push. RESOURCE_UPDATES.md records the changes and program commits requiring review. This workflow does not merge program code or publish app releases; the client keeps using official MaaResource.
+每次发布生成 [更新清单](RESOURCE_UPDATES.md)。MAA 内置程序更新使用本仓库，游戏资源仍从官方 MaaResource 获取。原 ｢Sync Official Resources｣ 保留为手动资源同步工具。
+
+English: GitHub checks upstream dev-v2 every 15 minutes and reacts immediately to app/resource pushes on native. Scheduled runs may be delayed. Conflict-free updates are merged and built, then must pass Debug native/pause checks, update protocol tests and five-client current/previous resource compatibility checks before publishing complete and program-update ZIPs with verified SHA256 digests. Failed merges or checks preserve the current public release. The client keeps using official MaaResource for game resources.
 
 ## 构建
 
@@ -35,4 +37,4 @@ GUI 使用 `dotnet publish -r win-x64 --self-contained true -p:DisableBeauty=Tru
 
 AGPL-3.0，见 LICENSE。保留上游版权和许可证。本项目不是 MAA 官方发行渠道。
 
-English: native.4 merges all 127 upstream commits through 110c5ffc (dev-v2, after v6.21.0-beta.3), including infrastructure speed improvements, Roguelike fixes, inventory corrections, and Reclamation moving to the toolbox. Native capture, layout adaptation, background debugging, and pause/resume are retained. This is an unofficial native-resolution Windows x64 phone edition of MAA. App updates are fetched only from this repository; game resources remain on the official MaaResource channel. Releases include complete source through the corresponding Git tag. Personal configuration and logs are never part of public packages.
+English: This unofficial native-resolution Windows x64 phone edition tracks official dev-v2. Native capture, layout adaptation, background debugging, and pause/resume are retained. App updates are fetched only from this repository; game resources remain on the official MaaResource channel. Releases include complete source through the corresponding Git tag. Personal configuration and logs are never part of public packages.
