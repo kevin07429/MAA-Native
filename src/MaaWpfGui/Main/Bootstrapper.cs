@@ -124,6 +124,7 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
             };
 
             var currentDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            ArchiveObsoleteRuntimeDlls(currentDirectory);
 
             maaDlls.UnionWith(GetDeclaredRuntimeDlls(Path.Combine(currentDirectory, "MAA.deps.json")));
             var dllFiles = Directory.GetFiles(currentDirectory, "*.dll");
@@ -168,6 +169,44 @@ public class Bootstrapper : Bootstrapper<RootViewModel>
             }
         }
         return names;
+    }
+
+    internal static string[] GetObsoleteRuntimeDlls(string previousDepsPath, string currentDepsPath)
+    {
+        if (!File.Exists(previousDepsPath) || !File.Exists(currentDepsPath))
+        {
+            return [];
+        }
+        var previous = GetDeclaredRuntimeDlls(previousDepsPath);
+        previous.ExceptWith(GetDeclaredRuntimeDlls(currentDepsPath));
+        return [.. previous];
+    }
+
+    internal static void ArchiveObsoleteRuntimeDlls(string rootDirectory)
+    {
+        try
+        {
+            string backupDirectory = Path.Combine(rootDirectory, ".old");
+            var obsolete = GetObsoleteRuntimeDlls(
+                Path.Combine(backupDirectory, "MAA.deps.json"),
+                Path.Combine(rootDirectory, "MAA.deps.json"));
+            string archiveDirectory = Path.Combine(backupDirectory, "obsolete-runtime-" + Guid.NewGuid().ToString("N"));
+            foreach (string name in obsolete)
+            {
+                string source = Path.Combine(rootDirectory, name);
+                if (!File.Exists(source))
+                {
+                    continue;
+                }
+                Directory.CreateDirectory(archiveDirectory);
+                File.Move(source, Path.Combine(archiveDirectory, name));
+                _logger.Information("Archived obsolete runtime dependency {Name}", name);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Could not archive obsolete runtime dependencies");
+        }
     }
 
     private static bool IsVCppInstalled()

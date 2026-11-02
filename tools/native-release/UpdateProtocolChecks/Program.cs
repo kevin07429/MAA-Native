@@ -56,6 +56,9 @@ if (args.Length > 2) {
     Console.WriteLine("PASS: legacy BlackFlow resource defaults restored without overwriting existing settings");
 }
 var service = assembly.GetType("MaaWpfGui.Services.NativeUpdateService", true)!;
+var compatibility = service.GetMethod("GetCompatibilityVersion", BindingFlags.Static | BindingFlags.NonPublic)!;
+foreach (var (input, expected) in new[] { ("v6.21.1-native.6", "v6.21.1"), ("v6.21.0-native.5", "v6.21.0"), ("v6.21.1-beta.1", "v6.21.1-beta.1"), ("v6.21.1", "v6.21.1"), ("v6.21.1-native.7+abcdef", "v6.21.1") })
+    Check((string)compatibility.Invoke(null,[input])! == expected,"feature compatibility uses upstream base: " + input);
 var resolve = service.GetMethod("GetProgramAssetName", BindingFlags.Static | BindingFlags.NonPublic)!;
 var validate = service.GetMethod("ValidateProgramArchive", BindingFlags.Static | BindingFlags.NonPublic)!;
 var inspect = assembly.GetType("MaaWpfGui.Services.PendingUpdateApplier", true)!.GetMethod("InspectLocalUpdatePackage")!;
@@ -99,6 +102,29 @@ var declared=assembly.GetType("MaaWpfGui.Main.Bootstrapper",true)!.GetMethod("Ge
 var dependencies=(HashSet<string>)declared.Invoke(null,[Path.Combine(gui,"MAA.deps.json")])!;
 Check(dependencies.Contains("System.Private.CoreLib.dll") && dependencies.Contains("Newtonsoft.Json.dll"),"self-contained runtime dependencies are recognized at startup");
 Check(!dependencies.Contains("UnknownInjected.dll"),"unlisted foreign DLLs remain unknown");
+var boot = assembly.GetType("MaaWpfGui.Main.Bootstrapper", true)!;
+var archiveObsolete = boot.GetMethod("ArchiveObsoleteRuntimeDlls", BindingFlags.Static | BindingFlags.NonPublic)!;
+string runtimeFixture = Path.Combine(fixture, "runtime-upgrade");
+Directory.CreateDirectory(Path.Combine(runtimeFixture, ".old"));
+const string legacyDac = "mscordaccore_amd64_amd64_10.0.1226.42308.dll";
+const string currentDac = "mscordaccore_amd64_amd64_10.0.1426.52326.dll";
+void Deps(string path, params string[] names) {
+    var native = new JObject();
+    foreach (string name in names) native["runtimes/win-x64/native/" + name] = new JObject();
+    File.WriteAllText(path, new JObject { ["targets"] = new JObject { ["net10.0/win-x64"] = new JObject { ["runtime/10"] = new JObject { ["native"] = native } } } }.ToString());
+}
+Deps(Path.Combine(runtimeFixture,".old","MAA.deps.json"),legacyDac,"coreclr.dll");
+Deps(Path.Combine(runtimeFixture,"MAA.deps.json"),currentDac,"coreclr.dll");
+foreach (string name in new[] { legacyDac, currentDac, "coreclr.dll", "UnknownInjected.dll" }) File.WriteAllText(Path.Combine(runtimeFixture,name),name);
+archiveObsolete.Invoke(null,[runtimeFixture]);
+Check(!File.Exists(Path.Combine(runtimeFixture,legacyDac)) && Directory.GetFiles(Path.Combine(runtimeFixture,".old"),legacyDac,SearchOption.AllDirectories).Length == 1,"old runtime DLL archived before startup check");
+Check(new[] {currentDac,"coreclr.dll","UnknownInjected.dll"}.All(name=>File.Exists(Path.Combine(runtimeFixture,name))),"current and unrelated DLLs are not removed or whitelisted");
+archiveObsolete.Invoke(null,[runtimeFixture]);
+Check(Directory.GetFiles(Path.Combine(runtimeFixture,".old"),legacyDac,SearchOption.AllDirectories).Length == 1,"runtime cleanup is repeatable without losing backups");
+File.Delete(Path.Combine(runtimeFixture,".old","MAA.deps.json"));
+File.WriteAllText(Path.Combine(runtimeFixture,legacyDac),legacyDac);
+archiveObsolete.Invoke(null,[runtimeFixture]);
+Check(File.Exists(Path.Combine(runtimeFixture,legacyDac)),"missing previous manifest never authorizes removal");
 foreach (string bad in new[] { "config/gui.new.json", "data/private.json", "resource/tasks/tasks.json", "cache/debug-control.json", "../escape.txt", "..\\escape.txt", "C:/escape.txt" }) {
     Check(!Valid(Zip((bad, "overwrite"))), "protected or escaping path rejected: " + bad);
 }

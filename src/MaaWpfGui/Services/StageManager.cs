@@ -287,7 +287,7 @@ public class StageManager
         var clientType = GetClientType().ToCustomString();
 
         bool isDebugVersion = Instances.VersionUpdateDialogViewModel.IsDebugVersion();
-        bool curVerParsed = TryParseVersion(VersionUpdateSettingsUserControlModel.CoreVersion, out var curVersionObj);
+        bool curVerParsed = TryParseVersion(NativeUpdateService.GetCompatibilityVersion(VersionUpdateSettingsUserControlModel.CoreVersion), out var curVersionObj);
 
         // bool curResourceVerParsed = SemVersion.TryParse(
         //    tasksJsonClient?["ResourceVersion"]?.ToString() ?? tasksJson?["ResourceVersion"]?.ToString() ?? string.Empty,

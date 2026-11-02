@@ -543,6 +543,10 @@ internal static partial class PendingUpdateApplier
         IReadOnlyList<string> removeEntries,
         IReadOnlyList<string> moveEntries)
     {
+        string currentDeps = Path.Combine(context.RootDir, "MAA.deps.json");
+        string nextDeps = Path.Combine(context.ExtractDir, "MAA.deps.json");
+        removeEntries = removeEntries.Concat(Bootstrapper.GetObsoleteRuntimeDlls(currentDeps, nextDeps))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         _logger.Information(
             "Delegating pending update apply to external updater: packageType={PackageType}, reason={Reason}",
             packageType,

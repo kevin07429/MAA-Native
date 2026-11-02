@@ -18,6 +18,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MaaWpfGui.Constants;
 using MaaWpfGui.Models.Copilot;
+using MaaWpfGui.Services;
 using MaaWpfGui.ViewModels.UserControl.Settings;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -254,7 +255,7 @@ public static class CopilotHelper
                     var task = obj.ToObject<SSSCopilotModel>();
                     if (!Instances.VersionUpdateDialogViewModel.IsDebugVersion())
                     {
-                        bool curParsed = SemVersion.TryParse(VersionUpdateSettingsUserControlModel.CoreVersion, SemVersionStyles.AllowLowerV, out var currentVer);
+                        bool curParsed = SemVersion.TryParse(NativeUpdateService.GetCompatibilityVersion(VersionUpdateSettingsUserControlModel.CoreVersion), SemVersionStyles.AllowLowerV, out var currentVer);
                         bool require = SemVersion.TryParse(task?.MinimumRequired, SemVersionStyles.AllowLowerV | SemVersionStyles.OptionalPatch, out var requireVer);
                         if (!curParsed)
                         {
@@ -277,7 +278,7 @@ public static class CopilotHelper
                     var task = obj.ToObject<CopilotModel>();
                     if (!Instances.VersionUpdateDialogViewModel.IsDebugVersion())
                     {
-                        bool curParsed = SemVersion.TryParse(VersionUpdateSettingsUserControlModel.CoreVersion, SemVersionStyles.AllowLowerV, out var currentVer);
+                        bool curParsed = SemVersion.TryParse(NativeUpdateService.GetCompatibilityVersion(VersionUpdateSettingsUserControlModel.CoreVersion), SemVersionStyles.AllowLowerV, out var currentVer);
                         bool require = SemVersion.TryParse(task?.MinimumRequired, SemVersionStyles.AllowLowerV | SemVersionStyles.OptionalPatch, out var requireVer);
                         if (!curParsed)
                         {

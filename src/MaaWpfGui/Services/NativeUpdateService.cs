@@ -35,6 +35,12 @@ internal static class NativeUpdateService
     internal const string Repository = "kevin07429/MAA-Native";
     private static readonly ILogger _logger = Log.ForContext(typeof(NativeUpdateService));
 
+    internal static string GetCompatibilityVersion(string version)
+    {
+        var match = Regex.Match(version, @"^v?(\d+\.\d+\.\d+)-native\.\d+(?:\+[0-9A-Za-z.-]+)?$");
+        return match.Success ? "v" + match.Groups[1].Value : version;
+    }
+
     internal static string? GetProgramAssetName(JObject release, string currentVersion, bool allowSameVersion = false)
     {
         string tag = release["tag_name"]?.Value<string>() ?? string.Empty;
