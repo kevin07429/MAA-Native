@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <boost/regex.hpp>
+#include <set>
 #include <utility>
 
 #include "Common/AsstMsg.h"
@@ -809,12 +810,38 @@ bool asst::InfrastAbstractTask::select_custom_opers_by_role(bool is_dorm_order)
     build_buckets(room_config.names, false, required_buckets, all_fallback_targets);
     build_buckets(room_config.candidates, true, candidate_buckets, all_fallback_targets);
 
+    constexpr int MaxScanPages = 64;
+    if (!ProcessTask(*this, { "BattleQuickFormationRoleExpanded", "BattleQuickFormationExpandRole" })
+             .set_retry_times(1)
+             .run()) {
+        LogWarn << "Role filtering unavailable; scanning the complete operator list";
+        ProcessTask(*this, { "InfrastOperListTabWorkStatusUnClicked" }).run();
+        ProcessTask(*this, { "InfrastOperListTabSkillUnClicked" }).run();
+        std::set<std::vector<std::string>> seen_pages;
+        for (int page = 0; page < MaxScanPages && !need_exit(); ++page) {
+            std::vector<std::string> names;
+            if (!select_custom_opers(names, is_dorm_order)) {
+                return false;
+            }
+            if (is_full() || (room_config.names.empty() && !has_pending_candidates())) {
+                return true;
+            }
+            std::ranges::sort(names);
+            if (!seen_pages.insert(names).second) {
+                LogWarn << "Operator scan revisited a page; stopping without committing an incomplete room";
+                break;
+            }
+            swipe_of_operlist();
+        }
+        return !need_exit();
+    }
+
     // 兜底目标不切页签，在 ALL 列表从当前位置继续翻页；到底即止不重试（查不到职业属配置异常，
     // 漏识别由收尾复核与选人重试兜底），避免为罕见路径引入回正复杂度
     if (!all_fallback_targets.empty()) {
         std::vector<std::string> pre_partial_result;
         bool pre_result_no_changes = false;
-        while (true) {
+        for (int page = 0; page < MaxScanPages; ++page) {
             if (need_exit()) {
                 return false;
             }
@@ -841,9 +868,12 @@ bool asst::InfrastAbstractTask::select_custom_opers_by_role(bool is_dorm_order)
 
     // 切换职业页签。先回 ALL 再点目标职业，重置该职业列表保留的滚动位置
     const auto switch_role_tab = [&](battle::Role role) {
-        ProcessTask(*this, { "BattleQuickFormationRole-All", "BattleQuickFormationRole-All-OCR" }).run();
-        ProcessTask(*this, { "BattleQuickFormationRole-" + enum_to_string(role, true) }).run();
+        if (!ProcessTask(*this, { "BattleQuickFormationRole-All", "BattleQuickFormationRole-All-OCR" }).run() ||
+            !ProcessTask(*this, { "BattleQuickFormationRole-" + enum_to_string(role, true) }).run()) {
+            return false;
+        }
         sleep(CustomRoleSwitchDelayMs);
+        return true;
     };
 
     // 单桶扫描：目标找齐/满员/列表到底即结束，到底 = 连续两页识别不变。
@@ -852,11 +882,13 @@ bool asst::InfrastAbstractTask::select_custom_opers_by_role(bool is_dorm_order)
     const auto scan_bucket =
         [&](battle::Role role, const std::vector<std::string>& targets, bool immediate_retry, bool& stalled) -> bool {
         stalled = false;
-        switch_role_tab(role);
+        if (!switch_role_tab(role)) {
+            return false;
+        }
         std::vector<std::string> pre_partial_result;
         bool pre_result_no_changes = false;
         bool retried = false;
-        while (true) {
+        for (int page = 0; page < MaxScanPages; ++page) {
             if (need_exit()) {
                 return false;
             }
@@ -873,7 +905,9 @@ bool asst::InfrastAbstractTask::select_custom_opers_by_role(bool is_dorm_order)
                         stalled = true; // 列表到底仍有目标未处理，确认缺席
                         return true;
                     }
-                    switch_role_tab(role); // 回切页签重置滚动，重扫一轮排除偶发漏识别
+                    if (!switch_role_tab(role)) {
+                        return false;
+                    }
                     retried = true;
                     pre_result_no_changes = false;
                     pre_partial_result.clear();
@@ -887,10 +921,10 @@ bool asst::InfrastAbstractTask::select_custom_opers_by_role(bool is_dorm_order)
             pre_partial_result = partial_result;
             swipe_of_operlist();
         }
+        stalled = true;
+        LogWarn << "Operator scan reached the page limit";
+        return true;
     };
-
-    // 基建选人界面职业栏默认收起，进入职业分桶扫描前展开
-    ProcessTask(*this, { "BattleQuickFormationExpandRole" }).set_retry_times(3).run();
 
     // 必选层：桶内目标找齐即切下一桶
     for (const auto& [role, targets] : required_buckets) {
