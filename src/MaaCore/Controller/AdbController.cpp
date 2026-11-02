@@ -18,6 +18,7 @@
 #pragma warning(pop)
 #endif
 
+#include "Common/AdaptiveLayout.h"
 #include "Common/AsstTypes.h"
 #include "Config/GeneralConfig.h"
 #include "Utils/Logger.hpp"
@@ -735,17 +736,29 @@ bool asst::AdbController::screencap(cv::Mat& image_payload, bool allow_reconnect
 
     const auto capture_encoded = [&]() {
         const int port = m_conn_ctx.adb_cfg.extras.get("nativeCapturePort", 0);
-        if (port > 0 && port <= 65535) {
+        if (port > 0 && port <= 65'535) {
             const auto direct_start = steady_clock::now();
             const auto encoded = native_capture::read_frame(static_cast<unsigned short>(port), milliseconds(3000));
             if (encoded && decode_encode(*encoded)) {
-                Log.info("Native socket screencap", duration_cast<milliseconds>(steady_clock::now() - direct_start).count(),
-                         "ms, bytes", encoded->size());
+                Log.info(
+                    "Native socket screencap",
+                    duration_cast<milliseconds>(steady_clock::now() - direct_start).count(),
+                    "ms, bytes",
+                    encoded->size());
                 return ScreencapResult::Success;
             }
             Log.warn("Native capture socket unavailable; falling back to encoded command");
         }
-        return screencap(m_adb.screencap_encode, decode_encode, allow_reconnect);
+        const auto result = screencap(m_adb.screencap_encode, decode_encode, allow_reconnect);
+        // The socket sends a 720-short-side image; adb fallback sends physical pixels.
+        // Keep the capture canvas stable without hiding actual display changes.
+        if (result == ScreencapResult::Success && port > 0) {
+            const auto canvas = adaptive::capture_canvas(image_payload.cols, image_payload.rows, m_width, m_height);
+            if (canvas.width != image_payload.cols || canvas.height != image_payload.rows) {
+                cv::resize(image_payload, image_payload, cv::Size(canvas.width, canvas.height), 0, 0, cv::INTER_AREA);
+            }
+        }
+        return result;
     };
 
     image_payload = cv::Mat(); // 清空缓存
@@ -760,13 +773,19 @@ bool asst::AdbController::screencap(cv::Mat& image_payload, bool allow_reconnect
                 m_adb.screencap_method = AdbProperty::ScreencapMethod::Encode;
                 m_inited = true;
                 Log.info("Using preferred encoded screencap", cost, "ms");
-                callback(AsstMsg::ConnectionInfo, json::object {
-                    { "uuid", m_uuid }, { "what", "FastestWayToScreencap" },
-                    { "details", json::object {
-                        { "method", "Encode" }, { "cost", cost }, { "selection", "Preferred" },
-                        { "alternatives", json::array {} },
-                    } },
-                });
+                callback(
+                    AsstMsg::ConnectionInfo,
+                    json::object {
+                        { "uuid", m_uuid },
+                        { "what", "FastestWayToScreencap" },
+                        { "details",
+                          json::object {
+                              { "method", "Encode" },
+                              { "cost", cost },
+                              { "selection", "Preferred" },
+                              { "alternatives", json::array {} },
+                          } },
+                    });
                 return true;
             }
             Log.warn("Preferred encoded screencap failed; probing other methods");

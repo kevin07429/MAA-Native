@@ -133,6 +133,30 @@ internal static class DebugControlService
                 return new { ok = true, pid = Environment.ProcessId, pipe = _pipeName, ready = RunningState.Instance.Inited, idle = RunningState.Instance.Idle, stopping = RunningState.Instance.Stopping, connected = proxy.Connected, running = proxy.AsstRunning(), pause_state = proxy.TaskPauseState() };
             case "pause":
                 return new { ok = proxy.PauseTask(), pause_state = proxy.TaskPauseState() };
+            case "monitor":
+                string monitorAction = request["action"]?.GetValue<string>() ?? "status";
+                if (monitorAction is not ("start" or "stop" or "status"))
+                {
+                    throw new ArgumentException("Unknown monitor action");
+                }
+                var toolbox = Instances.ToolboxViewModel;
+                if (monitorAction == "start" && proxy.AsstRunning())
+                {
+                    throw new InvalidOperationException("Stop the current task before starting the debug monitor");
+                }
+                Task monitorChange = Task.CompletedTask;
+                await Execute.OnUIThreadAsync(() => {
+                    if ((monitorAction == "start" && !toolbox.Peeping) || (monitorAction == "stop" && toolbox.Peeping))
+                    {
+                        monitorChange = toolbox.Peep();
+                    }
+                }).ConfigureAwait(false);
+                await monitorChange.ConfigureAwait(false);
+                object monitorStatus = new { ok = false };
+                await Execute.OnUIThreadAsync(() => {
+                    monitorStatus = new { ok = true, active = toolbox.Peeping, width = toolbox.PeepImage?.PixelWidth ?? 0, height = toolbox.PeepImage?.PixelHeight ?? 0, fps = toolbox.PeepScreenFpf };
+                }).ConfigureAwait(false);
+                return monitorStatus;
             case "resume":
                 return new { ok = proxy.ResumeTask(), pause_state = proxy.TaskPauseState() };
             case "connect":

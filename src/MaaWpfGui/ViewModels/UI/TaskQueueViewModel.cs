@@ -13,7 +13,6 @@
 
 #nullable enable
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -417,22 +416,16 @@ public class TaskQueueViewModel : Screen
 
         try
         {
-            var frameData = await Instances.AsstProxy.AsstGetImageBgrDataAsync(forceScreencap: forceScreencap).ConfigureAwait(false);
-            if (frameData is null || frameData.Length == 0)
+            var frameImage = await Instances.AsstProxy.AsstGetImageAsync(forceScreencap: forceScreencap).ConfigureAwait(false);
+            if (frameImage is null)
             {
                 return null;
             }
 
-            try
-            {
-                // 只保留小图，避免日志列表长期运行时占用过多内存。
-                var thumbnail = AsstProxy.CreateBgrBitmapSourceScaled(frameData, LogThumbnailWidth, LogThumbnailHeight);
-                return thumbnail;
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(frameData);
-            }
+            double scale = Math.Min((double)LogThumbnailWidth / frameImage.PixelWidth, (double)LogThumbnailHeight / frameImage.PixelHeight);
+            var thumbnail = new TransformedBitmap(frameImage, new System.Windows.Media.ScaleTransform(scale, scale));
+            thumbnail.Freeze();
+            return thumbnail;
         }
         finally
         {

@@ -37,6 +37,15 @@ int main()
     require(asst::native_click_target(Rect(20, 20, 0, 10), 1559, 720) == std::nullopt);
     using asst::adaptive::fixed_rect;
     using asst::adaptive::search_rect;
+    require(asst::adaptive::capture_canvas(2772, 1280, 2772, 1280) == Rect(0, 0, 1559, 720));
+    require(asst::adaptive::capture_canvas(1280, 2772, 2772, 1280) == Rect(0, 0, 720, 1559));
+    require(asst::adaptive::capture_canvas(1559, 720, 2772, 1280) == Rect(0, 0, 1559, 720));
+    require(asst::adaptive::capture_canvas(1920, 1080, 2772, 1280) == Rect(0, 0, 1920, 1080));
+    require(asst::adaptive::capture_canvas(1280, 720, 1280, 720) == Rect(0, 0, 1280, 720));
+    for (int width : { 1280, 1559, 1920 }) {
+        require(fixed_rect(Rect(150, 620, 365, 35), width, 720, "left") == Rect(150, 620, 365, 35));
+        require(fixed_rect(Rect(346, 626, 161, 52), width, 720, "left") == Rect(346, 626, 161, 52));
+    }
     const Rect original { 100, 200, 40, 30 };
     require(fixed_rect(original, 1280, 720) == original);
     require(search_rect(original, 1280, 720) == original);

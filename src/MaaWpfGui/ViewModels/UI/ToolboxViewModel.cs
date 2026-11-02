@@ -13,7 +13,6 @@
 
 #nullable enable
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -2624,8 +2623,8 @@ public class ToolboxViewModel : Screen
         {
             var count = Interlocked.Increment(ref _peepImageCount);
             var index = count % _peepImageCache.Length;
-            var frameData = await Instances.AsstProxy.AsstGetImageBgrDataAsync(forceScreencap: true);
-            if (frameData is null || frameData.Length == 0)
+            var frameImage = await Instances.AsstProxy.AsstGetImageAsync(forceScreencap: true);
+            if (frameImage is null)
             {
                 _logger.Warning("Peep image data is null or empty.");
                 return;
@@ -2635,16 +2634,14 @@ public class ToolboxViewModel : Screen
             if (!Peeping || count <= _peepImageNewestCount)
             {
                 _logger.Debug("Peep image count {Count} is not the newest, skip updating image.", count);
-                ArrayPool<byte>.Shared.Return(frameData);
                 return;
             }
 
             await Execute.OnUIThreadAsync(() => {
-                _peepImageCache[index] = AsstProxy.WriteBgrToBitmap(frameData, _peepImageCache[index]);
+                _peepImageCache[index] = new WriteableBitmap(frameImage);
             });
 
             PeepImage = _peepImageCache[index];
-            ArrayPool<byte>.Shared.Return(frameData);
             Interlocked.Exchange(ref _peepImageNewestCount, count);
 
             var now = DateTime.Now;
@@ -2736,6 +2733,8 @@ public class ToolboxViewModel : Screen
             }
 
             PeepScreenFpf = 0;
+            _lastFpsUpdateTime = DateTime.Now;
+            Interlocked.Exchange(ref _frameCount, 0);
             _peepImageCount = 0;
             _peepImageNewestCount = 0;
             _peepImageTimer.Start();

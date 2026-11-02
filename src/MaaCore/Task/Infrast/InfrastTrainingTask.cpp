@@ -62,6 +62,7 @@ std::optional<asst::InfrastTrainingTask::TrainingStatus> asst::InfrastTrainingTa
     const auto& image = ctrler()->get_image();
     RegionOCRer idle_analyzer(image);
     idle_analyzer.set_task_info("InfrastTrainingIdle");
+    idle_analyzer.set_roi(adapt_resource_rect(Task.get("InfrastTrainingIdle")->roi, "left"));
     if (idle_analyzer.analyze()) {
         json::value cb_info = basic_info_with_what("InfrastTrainingIdle");
         callback(AsstMsg::SubTaskExtraInfo, cb_info);
@@ -75,6 +76,7 @@ std::optional<asst::InfrastTrainingTask::TrainingStatus> asst::InfrastTrainingTa
         std::ranges::copy(replace_map, std::back_inserter(task_replace));
         RegionOCRer name_analyzer(image);
         name_analyzer.set_task_info("InfrastTrainingOperatorAndSkill");
+        name_analyzer.set_roi(adapt_resource_rect(Task.get("InfrastTrainingOperatorAndSkill")->roi, "left"));
         name_analyzer.set_replace(task_replace);
         name_analyzer.set_use_raw(true);
         if (!name_analyzer.analyze()) {
@@ -96,6 +98,7 @@ std::optional<asst::InfrastTrainingTask::TrainingStatus> asst::InfrastTrainingTa
     {
         RegionOCRer skill_analyzer(image);
         skill_analyzer.set_task_info("InfrastTrainingOperatorAndSkill");
+        skill_analyzer.set_roi(adapt_resource_rect(Task.get("InfrastTrainingOperatorAndSkill")->roi, "left"));
         skill_analyzer.set_use_raw(true);
         if (!skill_analyzer.analyze()) {
             Log.error(__FUNCTION__, "skill name recognition failed");
@@ -112,7 +115,7 @@ std::optional<asst::InfrastTrainingTask::TrainingStatus> asst::InfrastTrainingTa
         m_skill_name = skill_str.substr(separation_pos + 1);
     }
 
-    Rect roi = adapt_resource_rect(Task.get("InfrastTrainingSkillImg")->roi);
+    Rect roi = adapt_resource_rect(Task.get("InfrastTrainingSkillImg")->roi, "left");
     m_skill_img = image(make_rect<cv::Rect>(roi));
 
     // TODO: 根据角色职业增加换班功能
@@ -157,6 +160,7 @@ bool asst::InfrastTrainingTask::level_analyze(const cv::Mat& image)
 
     BestMatcher analyzer(image);
     analyzer.set_task_info(task_name);
+    analyzer.set_roi(adapt_resource_rect(Task.get(task_name)->roi, "left"));
     for (int i = 1; i <= 3; ++i) {
         std::string level_temp_name = task_name + std::to_string(i) + ".png";
         analyzer.append_templ(level_temp_name);
@@ -181,6 +185,7 @@ std::optional<std::string> asst::InfrastTrainingTask::time_left_analyze(const cv
     LogTraceFunction;
     RegionOCRer analyzer(image);
     analyzer.set_task_info("InfrastTrainingTime");
+    analyzer.set_roi(adapt_resource_rect(Task.get("InfrastTrainingTime")->roi, "left"));
     analyzer.set_use_raw(true);
     if (!analyzer.analyze()) {
         return std::nullopt;
