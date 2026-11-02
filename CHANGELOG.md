@@ -1,4 +1,4 @@
-## v6.21.0
+## v6.21.1
 
 ### Highlights
 
@@ -44,6 +44,30 @@ Auto formation now matches operators on the current page first, reducing paging;
 以下是详细内容：
 
 <details open>
+<summary><b>v6.21.1 (2026-11-02)</b></summary>
+
+### 新增 | New
+
+* 小工具-牛杂 新增 ｢战时新闻委员会｣ 小游戏 ([#18991](https://github.com/MaaAssistantArknights/MaaAssistantArknights/pull/18991)) @Daydreamer114 @ABA2396
+* 新增 ｢时间啊，向前！｣ TL-4 搓玉关卡导航 ([#18994](https://github.com/MaaAssistantArknights/MaaAssistantArknights/pull/18994)) @jinghero
+
+### 改进 | Improved
+
+* 适配 ｢时间啊，向前！｣ 通关后切换形态的活动界面 @ABA2396
+
+### 修复 | Fix
+
+* 修复主题切换按钮模板误缩放导致外服主题切换识别失败的问题 @ABA2396
+* YostarEN/JP/KR fix Reclamation Algorithm 3 Deliver Wood OCR regex ([#18996](https://github.com/MaaAssistantArknights/MaaAssistantArknights/pull/18996)) @Daydreamer114
+* YostarEN fix dormitory icon recognition at 720p @Constrat
+
+### 其他 | Other
+
+* CI 升级 actions/setup-python 至 v7 ([#18947](https://github.com/MaaAssistantArknights/MaaAssistantArknights/pull/18947))
+
+</details>
+
+<details>
 <summary><b>v6.21.0 (2026-11-01)</b></summary>
 
 ### 新增 | New

@@ -1,6 +1,6 @@
 {
   "merge_mode": "resource_patch_with_program_commits_excluded",
-  "upstream_commit": "296c32d7e8d75b648772a65c2db9ae77c26b8640",
+  "upstream_commit": "78ca631afe3ed37dafca5fd9f7ceffc5081eaf67",
   "previous_upstream_commit": "626a174b46f8eeea2b5fecc9e12706632f07d001",
   "updated_utc": "2026-11-01T17:58:49+00:00",
   "resource_version": {
@@ -76,30 +76,6 @@
       "title": "Release v6.21.1 (#18987)"
     }
   ],
-  "program_commits_not_merged": [
-    {
-      "sha": "2454195aa5ed64951d16d61f582d522d5fcfd8b4",
-      "title": "ci: bump actions/setup-python from 6 to 7 in /.github/workflows in the github-actions group (#18947)"
-    },
-    {
-      "sha": "c635d452edcb53e75d889636dc7a854bdb9993b1",
-      "title": "feat(Minigame): 战时新闻委员会 (#18991)"
-    },
-    {
-      "sha": "b33c819b1a15ce0f41c46cc5239804ccbf2a13f8",
-      "title": "fix: 战时新闻委员会本地化 key 补 TL 活动段"
-    },
-    {
-      "sha": "d9d220ea1b9f8d30bb31f979fba64fcd2f9877c3",
-      "title": "docs: 更新 v6.21.1 更新日志"
-    },
-    {
-      "sha": "d8a98c72a45618f24e9c55fa014809d5ade6bf52",
-      "title": "Release v6.21.1 (#18987)"
-    },
-    {
-      "sha": "296c32d7e8d75b648772a65c2db9ae77c26b8640",
-      "title": "ci: 仅允许 base 为 dev-v2 的 PR 触发 ci action"
-    }
-  ]
+  "program_commits_not_merged": [],
+  "automatic_full_update": true
 }
