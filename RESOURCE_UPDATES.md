@@ -1,6 +1,6 @@
-# MAA Native v6.21.1-native.9
+# MAA Native v6.21.1-native.10
 
-自动同步官方 dev-v2 `0e17be68d443d9fb86f6efaa3d38a61f007b4ed9`，保留手机适配、快速截图、后台控制与暂停/恢复。
+自动同步官方 dev-v2 `89b191044e962be66e2cab4c2d0767cd64122ebd`，保留手机适配、快速截图、后台控制与暂停/恢复。
 
 ## 本次官方提交
 
