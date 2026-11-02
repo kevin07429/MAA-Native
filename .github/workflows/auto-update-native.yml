@@ -58,8 +58,8 @@ jobs:
     runs-on: windows-2025-vs2026
     timeout-minutes: 120
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.NATIVE_UPDATE_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.NATIVE_UPDATE_TOKEN }}
       PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v7
@@ -67,12 +67,16 @@ jobs:
           ref: native
           fetch-depth: 0
           submodules: false
+          token: ${{ secrets.NATIVE_UPDATE_TOKEN }}
       - name: Merge upstream and allocate the next native version
         id: prepare
         shell: pwsh
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if (-not $env:GH_TOKEN) { throw 'NATIVE_UPDATE_TOKEN must grant repo and workflow access' }
+          gh api user --jq .login
+          if ($LASTEXITCODE -ne 0) { throw 'Automatic update credential is invalid' }
           git remote add upstream https://github.com/MaaAssistantArknights/MaaAssistantArknights.git
           git fetch --no-tags upstream dev-v2:refs/remotes/upstream/dev-v2
           if ($LASTEXITCODE -ne 0) { throw 'Upstream fetch failed' }
@@ -114,3 +118,13 @@ jobs:
         with:
           name: automatic-native-update-report
           path: RESOURCE_UPDATES.md
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: validated-native-packages
+          path: |
+            build-native/assets/*.zip
+            build-native/assets/*.sha256
+            build-native/assets/native-release.json
+          retention-days: 7
+          if-no-files-found: ignore

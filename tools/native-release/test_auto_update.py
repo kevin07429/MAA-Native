@@ -159,6 +159,24 @@ class AutoUpdateTests(unittest.TestCase):
         self.assertEqual(first["version"], second["version"])
         self.assertEqual(second["validated_commit"], third["validated_commit"])
 
+    def test_workflow_permission_failure_is_reported_immediately(self):
+        self.seed()
+        self.prepare()
+        original_run = subprocess.run
+
+        def reject_push(args, **kwargs):
+            if args[:2] == ["git", "push"]:
+                return subprocess.CompletedProcess(
+                    args, 1, b"", b"refusing workflow update without workflow scope"
+                )
+            return original_run(args, **kwargs)
+
+        with patch.object(auto.subprocess, "run", side_effect=reject_push):
+            with self.assertRaisesRegex(
+                RuntimeError, "requires repo and workflow access"
+            ):
+                auto.publish()
+
     def publish_fixture(self, bad_digest=False):
         self.seed()
         plan = self.prepare()

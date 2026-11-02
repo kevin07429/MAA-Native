@@ -201,6 +201,16 @@ def publish():
         )
         if pushed.returncode == 0:
             break
+        failure = pushed.stderr.decode("utf-8", errors="replace")
+        print("Source push failed:", failure, flush=True)
+        if (
+            "workflow" in failure.lower()
+            or "403" in failure
+            or "permission" in failure.lower()
+        ):
+            raise RuntimeError(
+                "Source push authorization failed; NATIVE_UPDATE_TOKEN requires repo and workflow access"
+            )
         command(
             "git", "fetch", "--no-tags", "origin", "native:refs/remotes/origin/native"
         )
@@ -220,7 +230,7 @@ def publish():
             remote,
         )
     else:
-        raise RuntimeError("Could not publish the validated source")
+        raise RuntimeError("Could not publish the validated source: " + failure)
     version = plan["version"]
     existing = subprocess.run(
         ["gh", "release", "view", version, "--repo", REPO, "--json", "isDraft"],

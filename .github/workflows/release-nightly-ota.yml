@@ -436,6 +436,7 @@ jobs:
   native-release:
     # Shared native packaging preserves wallpapers in program updates and includes them in full packages.
     # Automatic upstream releases also use build-native.ps1 and the same package verification.
+    # The automatic updater uses NATIVE_UPDATE_TOKEN to synchronize upstream workflow changes.
     if: github.repository == 'kevin07429/MAA-Native' && github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/native-release.yml
     with:
