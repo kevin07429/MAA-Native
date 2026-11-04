@@ -19,7 +19,14 @@ PATTERN = r"^v(\d+\.\d+\.\d+)-native\.(\d+)$"
 def command(*args):
     result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if result.returncode:
-        raise RuntimeError(result.stderr.decode("utf-8", errors="replace"))
+        details = (
+            (result.stdout + b"\n" + result.stderr)
+            .decode("utf-8", errors="replace")
+            .strip()
+        )
+        raise RuntimeError(
+            f"Command failed ({result.returncode}): {' '.join(args)}\n{details}"
+        )
     return result.stdout.decode("utf-8").strip()
 
 
@@ -61,6 +68,40 @@ def inspect(check_only=False):
     print(summary)
 
 
+def merge_upstream(head, target):
+    if os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+            out.write(f"merge_key=native-merge-v1-{head}-{target}\n")
+    try:
+        command("git", "merge", "--no-commit", "--no-ff", target)
+    except RuntimeError:
+        conflicts = command(
+            "git", "diff", "--name-only", "--diff-filter=U"
+        ).splitlines()
+        if conflicts:
+            report = Path("build-native/merge-conflict.json")
+            report.parent.mkdir(parents=True, exist_ok=True)
+            report.write_text(
+                json.dumps(
+                    {"head": head, "upstream": target, "files": conflicts}, indent=2
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            summary = (
+                "Upstream merge blocked by conflicts; no build or publication started.\n\n"
+                + "\n".join("- `" + name + "`" for name in conflicts)
+                + "\n"
+            )
+            print(summary, flush=True)
+            if os.environ.get("GITHUB_STEP_SUMMARY"):
+                with open(
+                    os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8"
+                ) as out:
+                    out.write(summary)
+        raise
+
+
 def prepare():
     if command("git", "status", "--porcelain", "--untracked-files=no"):
         raise RuntimeError("A clean tracked checkout is required")
@@ -70,7 +111,7 @@ def prepare():
     previous = re.fullmatch(PATTERN, release["tag_name"])
     if not previous:
         raise RuntimeError("Unexpected previous native release tag")
-    command("git", "merge", "--no-commit", "--no-ff", target)
+    merge_upstream(head, target)
     required = {
         "src/MaaWpfGui/Services/NativeUpdateService.cs": REPO,
         "src/MaaWpfGui/Services/DebugControlService.cs": "debug-control.json",

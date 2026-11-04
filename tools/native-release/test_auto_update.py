@@ -137,10 +137,42 @@ class AutoUpdateTests(unittest.TestCase):
         Path("README.md").write_text("official edits\n")
         self.git("commit", "-am", "official edits")
         self.git("checkout", "native")
-        with self.assertRaises(RuntimeError):
+        with self.assertRaisesRegex(RuntimeError, "README.md"):
             self.prepare()
         self.assertEqual(self.git("rev-parse", "HEAD"), head)
         self.assertFalse(auto.PLAN.exists())
+        report = json.loads(Path("build-native/merge-conflict.json").read_text())
+        self.assertEqual(report["files"], ["README.md"])
+        self.assertEqual(report["head"], head)
+        self.assertEqual(report["upstream"], self.git("rev-parse", "upstream/dev-v2"))
+        self.assertIn(
+            f"merge_key=native-merge-v1-{head}-{report['upstream']}",
+            Path(self.output).read_text(),
+        )
+
+    def test_non_conflict_merge_error_is_not_cached(self):
+        self.seed()
+        original = auto.command
+
+        def fail_merge(*args):
+            if args[:2] == ("git", "merge"):
+                raise RuntimeError("temporary git error")
+            return original(*args)
+
+        with patch.object(auto, "command", side_effect=fail_merge):
+            with self.assertRaisesRegex(RuntimeError, "temporary git error"):
+                self.prepare()
+        self.assertFalse(Path("build-native/merge-conflict.json").exists())
+
+    def test_command_error_includes_stdout_and_stderr(self):
+        result = subprocess.CompletedProcess(
+            ["git", "merge"], 1, b"CONFLICT in file.cs", b"merge failed"
+        )
+        with patch.object(auto.subprocess, "run", return_value=result):
+            with self.assertRaisesRegex(
+                RuntimeError, "CONFLICT in file.cs\nmerge failed"
+            ):
+                auto.command("git", "merge")
 
     def test_missing_background_control_blocks_release(self):
         self.seed()

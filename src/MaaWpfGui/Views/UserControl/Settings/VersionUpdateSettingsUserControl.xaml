@@ -12,7 +12,6 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:s="https://github.com/canton7/Stylet"
     xmlns:settings_vms="clr-namespace:MaaWpfGui.ViewModels.UserControl.Settings"
-    xmlns:uiBehaviors="clr-namespace:MaaWpfGui.Extensions.UIBehaviors"
     d:Background="White"
     d:DataContext="{d:DesignInstance {x:Type settings_vms:VersionUpdateSettingsUserControlModel}}"
     d:DesignWidth="540"
@@ -48,7 +47,17 @@
             ItemsSource="{Binding UpdateSourceList}"
             SelectedValue="{Binding UpdateSource}"
             SelectedValuePath="Value" />
-        <StackPanel Margin="5" Visibility="{c:Binding 'UpdateSource == enums:UpdateSource.MirrorChyan'}">
+        <StackPanel Margin="5">
+            <StackPanel.Style>
+                <Style TargetType="StackPanel">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding UpdateSource}" Value="{x:Static enums:UpdateSource.MirrorChyan}">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </StackPanel.Style>
             <controls:TextBlock Text="CDK" />
             <hc:PasswordBox
                 Width="250"

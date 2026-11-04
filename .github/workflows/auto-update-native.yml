@@ -2,23 +2,27 @@ name: Auto Update and Publish MAA Native
 
 on:
   schedule:
-    - cron: '7,22,37,52 * * * *'
+    - cron: "7,22,37,52 * * * *"
   push:
     branches: [native]
     paths:
-      - 'src/**'
-      - 'include/**'
-      - 'resource/**'
-      - 'cmake/**'
-      - 'CMakeLists.txt'
-      - 'CMakePresets.json'
-      - 'tools/wireless-native/**'
-      - 'tools/native-release/package_native.py'
-      - '.github/scripts/build-native.ps1'
+      - "src/**"
+      - "include/**"
+      - "resource/**"
+      - "cmake/**"
+      - "CMakeLists.txt"
+      - "CMakePresets.json"
+      - "tools/wireless-native/**"
+      - "tools/native-release/package_native.py"
+      - ".github/scripts/build-native.ps1"
   workflow_dispatch:
     inputs:
+      retry_conflict:
+        description: "Retry an already reported merge conflict"
+        type: boolean
+        default: false
       check_only:
-        description: 'Only inspect changes without publishing'
+        description: "Only inspect changes without publishing"
         type: boolean
         default: false
 
@@ -36,7 +40,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      changed: ${{ steps.inspect.outputs.changed }}
+      changed: ${{ steps.inspect.outputs.changed == 'true' && (steps.conflict.outputs.cache-hit != 'true' || inputs.retry_conflict == true) }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -52,6 +56,27 @@ jobs:
           else
             python3 .github/scripts/auto-update-native.py inspect
           fi
+      - name: Identify the exact source pair
+        if: steps.inspect.outputs.changed == 'true'
+        id: pair
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          native=$(gh api repos/kevin07429/MAA-Native/commits/native --jq .sha)
+          upstream=$(gh api repos/MaaAssistantArknights/MaaAssistantArknights/commits/dev-v2 --jq .sha)
+          echo "key=native-merge-v1-$native-$upstream" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@v5
+        if: steps.inspect.outputs.changed == 'true'
+        id: conflict
+        with:
+          path: build-native/merge-conflict.json
+          key: ${{ steps.pair.outputs.key }}
+          lookup-only: true
+      - name: Report an unchanged merge blocker
+        if: steps.conflict.outputs.cache-hit == 'true' && inputs.retry_conflict != true
+        run: |
+          echo '::notice::This exact native/upstream pair already has a reported merge conflict. Waiting for either source to change; use retry_conflict for a manual retry.'
+          echo 'Merge remains blocked by a previously reported conflict. No compilation or release was attempted. A source change resumes automatic updates; retry_conflict permits an explicit retry.' >> "$GITHUB_STEP_SUMMARY"
   update:
     needs: detect
     if: needs.detect.outputs.changed == 'true'
@@ -60,7 +85,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.NATIVE_UPDATE_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.NATIVE_UPDATE_TOKEN }}
-      PYTHONUTF8: '1'
+      PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v7
         with:
@@ -86,7 +111,7 @@ jobs:
         run: bash .github/scripts/sync-optional-submodules.sh --init --depth 1 src/MaaUtils 3rdparty/EmulatorExtras
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: "10.0.x"
       - name: Build and verify the complete release
         shell: pwsh
         env:
@@ -113,6 +138,16 @@ jobs:
       - name: Publish validated source and all installation assets
         shell: pwsh
         run: python .github/scripts/auto-update-native.py publish
+      - uses: actions/cache/save@v5
+        if: failure() && steps.prepare.outputs.merge_key != '' && hashFiles('build-native/merge-conflict.json') != ''
+        with:
+          path: build-native/merge-conflict.json
+          key: ${{ steps.prepare.outputs.merge_key }}
+      - uses: actions/upload-artifact@v7
+        if: failure() && hashFiles('build-native/merge-conflict.json') != ''
+        with:
+          name: upstream-merge-conflict
+          path: build-native/merge-conflict.json
       - uses: actions/upload-artifact@v7
         if: always()
         with:

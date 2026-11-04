@@ -439,6 +439,7 @@ jobs:
     # Native regression tests also cover capture fallback canvases and left-anchored training text.
     # Automatic upstream releases also use build-native.ps1 and the same package verification.
     # The automatic updater uses NATIVE_UPDATE_TOKEN to synchronize upstream workflow changes.
+    # Exact merge conflicts are reported and cached until either source changes; packages still require full validation.
     if: github.repository == 'kevin07429/MAA-Native' && github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/native-release.yml
     with:
