@@ -1297,10 +1297,16 @@ Cache files (such as maps, operator avatars, etc.) need to be regenerated after 
     <system:String x:Key="Guide.RestartPrompt">The settings guide will be displayed on the main interface. Restart the application now?</system:String>
     <system:String x:Key="Guide.Settings">Settings Guide</system:String>
     <system:String x:Key="Guide.Skip">Skip</system:String>
+    <system:String x:Key="Guide.SkipPrompt" xml:space="preserve">The remaining steps, such as "{key=TaskQueue.TaskSettings}", demonstrate common task queue operations. Completing the guide is recommended. Skip anyway?&#10;You can revisit it later via "{key=Guide.Restart}" under "{key=Settings.Title} - {key=Settings.Ui.Title} - {key=Guide.Title}".</system:String>
     <system:String x:Key="Guide.Tip">Prompt appears when hovered</system:String>
     <system:String x:Key="Guide.Title">Operations and Guide</system:String>
     <system:String x:Key="Guide.User">User Guide</system:String>
     <system:String x:Key="Guide.ViewLog">You can go to "{key=Settings.Title} - {key=Settings.IssueReport.Title} - {key=Error.OpenDebugFolder}" to view logs and understand the specific cause of the error.</system:String>
+    <system:String x:Key="InferenceBackend">Inference Backend</system:String>
+    <system:String x:Key="InferenceBackendAuto">Auto (Recommended)</system:String>
+    <system:String x:Key="InferenceBackendDirectML">DirectML</system:String>
+    <system:String x:Key="InferenceBackendTip" xml:space="preserve">Select the execution provider for model inference.&#10;Auto mode selects the most stable provider (DirectML); WebGPU is still experimental.</system:String>
+    <system:String x:Key="InferenceBackendWebGpu">WebGPU (Experimental)</system:String>
     <system:String x:Key="Infrast.ContinueTraining">After training is complete, try to continue mastering the current Skill</system:String>
     <system:String x:Key="Infrast.Custom.File">Base Configuration</system:String>
     <system:String x:Key="Infrast.Custom.FileHasPlanNoPeriod">Some rotations in the {key=Infrast.Mode.Custom} configuration have time periods set, which may lead to unexpected behavior. To set shift change time periods, ensure all rotations have time periods configured; otherwise, leave them all blank.</system:String>
@@ -1916,9 +1922,13 @@ If system notifications are turned off, an in-app notification will be used inst
     <system:String x:Key="Settings.Update.GitHub.Token.Invalid">The token is invalid. Please check if the input is correct.</system:String>
     <system:String x:Key="Settings.Update.GitHub.Token.NeverExpires">Token never expires.</system:String>
     <system:String x:Key="Settings.Update.GitHub.Token.RemainingDays">Token expires in {0} days.</system:String>
+    <system:String x:Key="Settings.Update.GitHub.Token.Tip" xml:space="preserve">Anonymous access to the GitHub API is rate-limited; without a token, update checks are provided by the MAA Team.
+After entering and validating your own {key=Settings.Update.GitHub.Token}, you get a dedicated quota, and both software and resource update checks and downloads are provided by GitHub.
+A read-only token is recommended; no other permissions are required.</system:String>
     <system:String x:Key="Settings.Update.LocalResourcePackageTooOld">Resource package version ({0}) is not newer than the current version ({1}). Import skipped.</system:String>
     <system:String x:Key="Settings.Update.MaaVersion">Software Version</system:String>
     <system:String x:Key="Settings.Update.MirrorChyan.Cdk">{key=Settings.Update.Source.MirrorChyan} CDK</system:String>
+    <system:String x:Key="Settings.Update.MirrorChyan.Cdk.Tip" xml:space="preserve">After entering a {key=Settings.Update.Source.MirrorChyan} CDK, automatic updates for both software and resources are enabled, with downloads prioritized via the high-speed CDN for greater stability and speed.</system:String>
     <system:String x:Key="Settings.Update.MirrorChyan.CdkRemainingDays">CDK expires in {0} days.</system:String>
     <system:String x:Key="Settings.Update.MirrorChyan.Checking">Validating CDK…</system:String>
     <system:String x:Key="Settings.Update.MirrorChyan.ExpirationUnknown">CDK expiration date is unavailable.</system:String>
@@ -2540,7 +2550,6 @@ Only level rewards can be farmed; to get the Engraved Medal, all ｢Key Objectiv
     <system:String x:Key="VersionUpdate.NewVersionDownloadFailed.Description">Please download the zip file manually and place it in the directory</system:String>
     <system:String x:Key="VersionUpdate.NewVersionDownloadFailed.Title">Download of Update Package Failed</system:String>
     <system:String x:Key="VersionUpdate.NewVersionDownloadPreparing">Preparing to download update package……</system:String>
-    <system:String x:Key="VersionUpdate.NewVersionDownloadRateLimited">Downloads are rate limited. Please try again in {0} seconds.</system:String>
     <system:String x:Key="VersionUpdate.NewVersionDownloadRetrying">Update package download failed. Retrying in {0} seconds (download attempt {1}/{2} failed).</system:String>
     <system:String x:Key="VersionUpdate.NewVersionDownloading.GlobalSource">\nDownloading from ｢{key=Settings.Update.Source.Global}｣...</system:String>
     <system:String x:Key="VersionUpdate.NewVersionDownloading.MirrorChyan">\nDownloading from ｢{key=Settings.Update.Source.MirrorChyan}｣...</system:String>
@@ -2579,6 +2588,7 @@ Continue only after you have verified the directory layout and finished a manual
     <system:String x:Key="VersionUpdate.PendingFullUpdate.No">Not now, start current version</system:String>
     <system:String x:Key="VersionUpdate.PendingFullUpdate.Title">Manual confirmation required for full-package update</system:String>
     <system:String x:Key="VersionUpdate.PendingFullUpdate.Yes">I backed it up, continue update</system:String>
+    <system:String x:Key="VersionUpdate.RateLimited">Update requests are rate limited. Please try again later.</system:String>
     <system:String x:Key="VersionUpdate.ResourceBroken">The resources are damaged. Try auto repair (download the full package again), or continue for now and update later by dragging in a local full package.\n\n{key=VersionUpdate.FullPackageUpgrade.Tip}</system:String>
     <system:String x:Key="VersionUpdate.ResourceVersion">Resource Version</system:String>
     <system:String x:Key="VersionUpdate.SecurityWhitelist.Tip">add the MAA installation folder to that software's allowlist before trying again.</system:String>

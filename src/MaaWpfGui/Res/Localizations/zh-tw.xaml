@@ -1298,10 +1298,16 @@ DEBUG 目錄下儲存的圖片有數量限制，超出後會自動清理舊圖�
     <system:String x:Key="Guide.RestartPrompt">設定指引將在主介面顯示，是否立即重新啟動應用程式？</system:String>
     <system:String x:Key="Guide.Settings">設定指引</system:String>
     <system:String x:Key="Guide.Skip">跳過</system:String>
+    <system:String x:Key="Guide.SkipPrompt" xml:space="preserve">｢{key=TaskQueue.TaskSettings}｣ 等剩餘步驟演示了任務佇列的常用操作，建議完整走完。確定跳過嗎？&#10;之後可在 ｢{key=Settings.Title} - {key=Settings.Ui.Title} - {key=Guide.Title}｣ 中{key=Guide.Restart}。</system:String>
     <system:String x:Key="Guide.Tip">滑鼠移至此處會有提示喔</system:String>
     <system:String x:Key="Guide.Title">操作與指引</system:String>
     <system:String x:Key="Guide.User">使用指引</system:String>
     <system:String x:Key="Guide.ViewLog">您可以前往 ｢{key=Settings.Title} - {key=Settings.IssueReport.Title} - {key=Error.OpenDebugFolder}｣ 查看日誌，了解錯誤發生的具體原因。</system:String>
+    <system:String x:Key="InferenceBackend">推論後端</system:String>
+    <system:String x:Key="InferenceBackendAuto">自動 (推薦)</system:String>
+    <system:String x:Key="InferenceBackendDirectML">DirectML</system:String>
+    <system:String x:Key="InferenceBackendTip" xml:space="preserve">選擇模型推論計算後端。&#10;自動模式會選擇最成熟穩定的後端（DirectML）；WebGPU 仍處於實驗階段。</system:String>
+    <system:String x:Key="InferenceBackendWebGpu">WebGPU (實驗性)</system:String>
     <system:String x:Key="Infrast.ContinueTraining">訓練完成後繼續嘗試專精目前技能</system:String>
     <system:String x:Key="Infrast.Custom.File">自訂基建排班檔案</system:String>
     <system:String x:Key="Infrast.Custom.FileHasPlanNoPeriod">自訂基建排班僅有部分計畫設定了時段，可能會產生預期外的行為。若需設定換班時段請確保所有計畫均有設定時段，否則請全部留白。</system:String>
@@ -1917,9 +1923,13 @@ DEBUG 目錄下儲存的圖片有數量限制，超出後會自動清理舊圖�
     <system:String x:Key="Settings.Update.GitHub.Token.Invalid">Token 無效，請檢查輸入是否正確。</system:String>
     <system:String x:Key="Settings.Update.GitHub.Token.NeverExpires">Token 永不過期。</system:String>
     <system:String x:Key="Settings.Update.GitHub.Token.RemainingDays">Token 還剩 {0} 天到期。</system:String>
+    <system:String x:Key="Settings.Update.GitHub.Token.Tip" xml:space="preserve">GitHub API 匿名存取有速率限制；不填寫時更新偵測由 MAA Team 提供。
+填寫並驗證自己的 {key=Settings.Update.GitHub.Token} 後使用獨立配額，軟體與資源的更新檢查與下載皆由 GitHub 提供。
+建議使用唯讀 Token，無需授予其他權限。</system:String>
     <system:String x:Key="Settings.Update.LocalResourcePackageTooOld">資源檔案版本（{0}）小於等於目前版本（{1}），已跳過匯入。</system:String>
     <system:String x:Key="Settings.Update.MaaVersion">軟體版本</system:String>
     <system:String x:Key="Settings.Update.MirrorChyan.Cdk">{key=Settings.Update.Source.MirrorChyan} CDK</system:String>
+    <system:String x:Key="Settings.Update.MirrorChyan.Cdk.Tip" xml:space="preserve">填寫 {key=Settings.Update.Source.MirrorChyan} CDK 後，支援軟體與資源的自動更新，下載優先走高速 CDN，更穩定快速。</system:String>
     <system:String x:Key="Settings.Update.MirrorChyan.CdkRemainingDays">CDK 還剩 {0} 天到期。</system:String>
     <system:String x:Key="Settings.Update.MirrorChyan.Checking">正在驗證 CDK……</system:String>
     <system:String x:Key="Settings.Update.MirrorChyan.ExpirationUnknown">未取得 CDK 到期時間。</system:String>
@@ -2540,7 +2550,6 @@ HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Notifications\Settin
     <system:String x:Key="VersionUpdate.NewVersionDownloadFailed.Description">請嘗試手動下載後，將壓縮檔放到目錄下 _(:з」∠)_</system:String>
     <system:String x:Key="VersionUpdate.NewVersionDownloadFailed.Title">新版本下載失敗</system:String>
     <system:String x:Key="VersionUpdate.NewVersionDownloadPreparing">正在準備下載更新檔案……</system:String>
-    <system:String x:Key="VersionUpdate.NewVersionDownloadRateLimited">下載受到速率限制，請在 {0} 秒後重試。</system:String>
     <system:String x:Key="VersionUpdate.NewVersionDownloadRetrying">更新檔案下載失敗，將在 {0} 秒後重試（第 {1}/{2} 次下載失敗）。</system:String>
     <system:String x:Key="VersionUpdate.NewVersionDownloading.GlobalSource">正在使用 ｢{key=Settings.Update.Source.Global}｣ 下載…</system:String>
     <system:String x:Key="VersionUpdate.NewVersionDownloading.MirrorChyan">正在使用 ｢{key=Settings.Update.Source.MirrorChyan}｣ 下載…</system:String>
@@ -2579,6 +2588,7 @@ D:\
     <system:String x:Key="VersionUpdate.PendingFullUpdate.No">暫不更新，繼續啟動目前版本</system:String>
     <system:String x:Key="VersionUpdate.PendingFullUpdate.Title">完整檔案更新需要手動確認</system:String>
     <system:String x:Key="VersionUpdate.PendingFullUpdate.Yes">我已手動確認並備份，繼續更新</system:String>
+    <system:String x:Key="VersionUpdate.RateLimited">更新請求受到速率限制，請稍後重試。</system:String>
     <system:String x:Key="VersionUpdate.ResourceBroken">檔案損毀，可嘗試自動修復（重新下載完整安裝檔），或暫不處理、稍後拖入本機完整包更新。\n\n{key=VersionUpdate.FullPackageUpgrade.Tip}</system:String>
     <system:String x:Key="VersionUpdate.ResourceVersion">資源版本</system:String>
     <system:String x:Key="VersionUpdate.SecurityWhitelist.Tip">建議將 MAA 所在資料夾加入對應軟體白名單後再試一次。</system:String>

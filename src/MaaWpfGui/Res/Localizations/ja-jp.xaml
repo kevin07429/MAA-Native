@@ -1300,10 +1300,16 @@ DEBUGディレクトリに保存される画像には数量制限があり、超
     <system:String x:Key="Guide.RestartPrompt">設定ガイドはメイン画面に表示されます。今すぐアプリケーションを再起動しますか？</system:String>
     <system:String x:Key="Guide.Settings">設定ガイド</system:String>
     <system:String x:Key="Guide.Skip">スキップ</system:String>
+    <system:String x:Key="Guide.SkipPrompt" xml:space="preserve">｢{key=TaskQueue.TaskSettings}｣ など残りのステップではタスクの基本的な操作を説明します。最後まで進めることをおすすめします。スキップしますか？&#10;後で ｢{key=Settings.Title} - {key=Settings.Ui.Title} - {key=Guide.Title}｣ で{key=Guide.Restart}できます。</system:String>
     <system:String x:Key="Guide.Tip">マウスを乗せるとヒントあり</system:String>
     <system:String x:Key="Guide.Title">操作とガイド</system:String>
     <system:String x:Key="Guide.User">使用ガイド</system:String>
     <system:String x:Key="Guide.ViewLog">｢{key=Settings.Title} - {key=Settings.IssueReport.Title} - {key=Error.OpenDebugFolder}｣ にアクセスしてログを確認し、エラーの具体的な原因を把握できます。</system:String>
+    <system:String x:Key="InferenceBackend">推論バックエンド</system:String>
+    <system:String x:Key="InferenceBackendAuto">自動 (推奨)</system:String>
+    <system:String x:Key="InferenceBackendDirectML">DirectML</system:String>
+    <system:String x:Key="InferenceBackendTip" xml:space="preserve">モデル推論の実行バックエンドを選択します。&#10;自動モードでは最も安定したバックエンド（DirectML）が選択されます。WebGPU は現在実験的機能です。</system:String>
+    <system:String x:Key="InferenceBackendWebGpu">WebGPU (実験的)</system:String>
     <system:String x:Key="Infrast.ContinueTraining">訓練完了後に現在スキルの継続特化を試みます</system:String>
     <system:String x:Key="Infrast.Custom.File">基地構成ファイルの指定</system:String>
     <system:String x:Key="Infrast.Custom.FileHasPlanNoPeriod">カスタムインフラストラクチャ設定では、一部のプランにのみ時間帯が設定されている場合があり、予期しない動作が発生する可能性があります。シフト交代時間帯を設定する必要がある場合は、すべてのプランに時間帯が設定されていることを確認してください。設定されていない場合は、すべてのプランを空白のままにしてください。</system:String>
@@ -1919,9 +1925,13 @@ MAA は非インストール型のアプリケーションであり、レジス�
     <system:String x:Key="Settings.Update.GitHub.Token.Invalid">Token が無効です。入力が正しいか確認してください。</system:String>
     <system:String x:Key="Settings.Update.GitHub.Token.NeverExpires">Token は無期限です。</system:String>
     <system:String x:Key="Settings.Update.GitHub.Token.RemainingDays">Token の有効期限まで残り {0} 日です。</system:String>
+    <system:String x:Key="Settings.Update.GitHub.Token.Tip" xml:space="preserve">GitHub API への匿名アクセスはレート制限の対象です。未入力の場合、更新確認は MAA Team が提供します。
+独自の {key=Settings.Update.GitHub.Token} を入力して検証に成功すると、専用の枠が使えるほか、ソフトウェアとリソースの更新確認とダウンロードはどちらも GitHub が提供します。
+読み取り専用 Token の使用を推奨します。他の権限は不要です。</system:String>
     <system:String x:Key="Settings.Update.LocalResourcePackageTooOld">リソースパッケージのバージョン（{0}）は現在のバージョン（{1}）と同じか古いため、インポートをスキップしました。</system:String>
     <system:String x:Key="Settings.Update.MaaVersion">Software バージョン</system:String>
     <system:String x:Key="Settings.Update.MirrorChyan.Cdk">{key=Settings.Update.Source.MirrorChyan} CDK</system:String>
+    <system:String x:Key="Settings.Update.MirrorChyan.Cdk.Tip" xml:space="preserve">{key=Settings.Update.Source.MirrorChyan} CDK を入力すると、ソフトウェアとリソースの自動更新が有効になり、ダウンロードは高速 CDN が優先され、より安定かつ高速になります。</system:String>
     <system:String x:Key="Settings.Update.MirrorChyan.CdkRemainingDays">CDK の有効期限は残り {0} 日です。</system:String>
     <system:String x:Key="Settings.Update.MirrorChyan.Checking">CDK を検証中……</system:String>
     <system:String x:Key="Settings.Update.MirrorChyan.ExpirationUnknown">CDK の有効期限を取得できませんでした。</system:String>
@@ -2541,7 +2551,6 @@ HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Notifications\Settin
     <system:String x:Key="VersionUpdate.NewVersionDownloadFailed.Description">ZIPファイルを手動でダウンロードし、ディレクトリに配置してください</system:String>
     <system:String x:Key="VersionUpdate.NewVersionDownloadFailed.Title">アップデートパッケージのダウンロードに失敗しました</system:String>
     <system:String x:Key="VersionUpdate.NewVersionDownloadPreparing">アップデートパッケージのダウンロードを準備中です……</system:String>
-    <system:String x:Key="VersionUpdate.NewVersionDownloadRateLimited">ダウンロードがレート制限されています。{0} 秒後に再試行してください。</system:String>
     <system:String x:Key="VersionUpdate.NewVersionDownloadRetrying">アップデートパッケージのダウンロードに失敗しました。{0} 秒後に再試行します（{1}/{2} 回目のダウンロードに失敗）。</system:String>
     <system:String x:Key="VersionUpdate.NewVersionDownloading.GlobalSource">｢{key=Settings.Update.Source.Global}｣ からダウンロード中...</system:String>
     <system:String x:Key="VersionUpdate.NewVersionDownloading.MirrorChyan">｢{key=Settings.Update.Source.MirrorChyan}｣ からダウンロード中...</system:String>
@@ -2580,6 +2589,7 @@ D:\
     <system:String x:Key="VersionUpdate.PendingFullUpdate.No">今は更新せず、このバージョンを起動します</system:String>
     <system:String x:Key="VersionUpdate.PendingFullUpdate.Title">フルパッケージ更新には手動確認が必要です</system:String>
     <system:String x:Key="VersionUpdate.PendingFullUpdate.Yes">バックアップ済みです。更新を続行します</system:String>
+    <system:String x:Key="VersionUpdate.RateLimited">更新リクエストがレート制限されています。しばらくしてから再試行してください。</system:String>
     <system:String x:Key="VersionUpdate.ResourceBroken">リソースファイルが破損しています。自動修復（完全なパッケージの再ダウンロード）を試すか、今はそのまま続けて、後でローカルの完全パッケージをドラッグして更新してください。\n\n{key=VersionUpdate.FullPackageUpgrade.Tip}</system:String>
     <system:String x:Key="VersionUpdate.ResourceVersion">リソースバーション</system:String>
     <system:String x:Key="VersionUpdate.SecurityWhitelist.Tip">MAA のフォルダーを当該ソフトの許可リストに追加してから、もう一度お試しください。</system:String>
