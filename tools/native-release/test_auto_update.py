@@ -52,6 +52,10 @@ class AutoUpdateTests(unittest.TestCase):
             "src/MaaWpfGui/Services/DebugControlService.cs": "debug-control.json",
             "src/MaaWpfGui/ViewModels/UI/RootViewModel.cs": "NativeCaptureService.EnsureStartedAsync(); DebugControlService.Start();",
             "src/MaaWpfGui/ViewModels/Dialogs/VersionUpdateDialogViewModel.cs": "return NativeUpdateService.CheckAndDownloadAsync();",
+            "src/MaaWpfGui/ViewModels/UserControl/Settings/VersionUpdateSettingsUserControlModel.cs": "    public async Task ManualUpdateResource()\n    {\n        await ResourceUpdater.ResourceUpdateAndReloadAsync();\n    }\n\n    // UI ",
+            "src/MaaWpfGui/Views/UserControl/Settings/VersionUpdateSettingsUserControl.xaml": "<UserControl />\n",
+            "src/MaaWpfGui/Views/UserControl/GuideUserControl.xaml": "<UserControl />\n",
+            "src/MaaWpfGui/Models/ResourceUpdater.cs": "class ResourceUpdater {}\n",
             "src/MaaWpfGui/Views/UserControl/Settings/AboutUserControl.xaml": "<UserControl />",
             ".github/native-resource-sync.json": "{}",
             "resource/version.json": '{"last_updated":"old"}',
@@ -182,6 +186,47 @@ class AutoUpdateTests(unittest.TestCase):
                 lambda native, upstream: native,
             )
         self.assertEqual(target.read_text(), "before\nnative\nafter\n")
+
+    def test_upstream_update_resolves_and_stages_known_gui_conflicts(self):
+        self.seed()
+        dialog = Path(
+            "src/MaaWpfGui/ViewModels/Dialogs/VersionUpdateDialogViewModel.cs"
+        )
+        settings = Path(
+            "src/MaaWpfGui/ViewModels/UserControl/Settings/VersionUpdateSettingsUserControlModel.cs"
+        )
+        dialog.write_text("native dialog\n")
+        settings.write_text(
+            "class Settings {\n    native update\n"
+            "    public async Task ManualUpdateResource()\n    {\n        await ResourceUpdater.ResourceUpdateAndReloadAsync();\n    }\n\n    // UI \n}\n"
+        )
+        self.git("add", ".")
+        self.git("commit", "-m", "native update UI")
+        head = self.git("rev-parse", "HEAD")
+        self.git("checkout", "upstream/dev-v2")
+        dialog.write_text("upstream dialog\n")
+        settings.write_text(
+            "class Settings {\n    upstream update\n"
+            "    public async Task ManualUpdateResource()\n    {\n        await ResourceUpdater.ResourceUpdateAndReloadAsync();\n    }\n\n    // UI \n}\n"
+        )
+        self.git("add", ".")
+        self.git("commit", "-m", "upstream update UI")
+        target = self.git("rev-parse", "HEAD")
+        self.git("checkout", "native")
+        resolver_path = (
+            Path(__file__).resolve().parents[2]
+            / ".github/scripts/resolve-update-conflicts.py"
+        )
+        destination = Path(".github/scripts/resolve-update-conflicts.py")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(
+            resolver_path.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        auto.merge_upstream(head, target)
+        self.assertEqual(self.git("diff", "--name-only", "--diff-filter=U"), "")
+        self.assertIn("upstream update", settings.read_text())
+        self.assertEqual(self.git("status", "--porcelain", "--untracked-files=no"), "")
+        self.assertNotEqual(self.git("rev-parse", "HEAD"), head)
 
     def test_command_error_includes_stdout_and_stderr(self):
         result = subprocess.CompletedProcess(

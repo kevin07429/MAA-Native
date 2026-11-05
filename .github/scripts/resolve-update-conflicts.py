@@ -11,7 +11,7 @@ def resolve(relative, chooser):
     path = ROOT / relative
     text = path.read_text(encoding="utf-8-sig")
     text, count = re.subn(
-        r"^<<<<<<< HEAD\n(.*?)^=======\n(.*?)^>>>>>>> [^\n]+\n",
+        r"^<<<<<<<[^\n]*\n(.*?)^=======\n(.*?)^>>>>>>>[^\n]*(?:\n|$)",
         lambda match: chooser(match[1], match[2]),
         text,
         flags=re.MULTILINE | re.DOTALL,
@@ -45,7 +45,7 @@ def main():
     resource_updater = ROOT / "Models/ResourceUpdater.cs"
     text = resource_updater.read_text(encoding="utf-8-sig")
     text, count = re.subn(
-        r"^<<<<<<< HEAD\n(.*?)^=======\n(.*?)^>>>>>>> [^\n]+\n",
+        r"^<<<<<<<[^\n]*\n(.*?)^=======\n(.*?)^>>>>>>>[^\n]*(?:\n|$)",
         lambda match: match[1][
             : match[1].index("            var (ret, uri, releaseNote)")
         ]
@@ -62,7 +62,7 @@ def main():
     )
     text = settings.read_text(encoding="utf-8-sig")
     text, count = re.subn(
-        r"^<<<<<<< HEAD\n(.*?)^=======\n(.*?)^>>>>>>> [^\n]+\n",
+        r"^<<<<<<<[^\n]*\n(.*?)^=======\n(.*?)^>>>>>>>[^\n]*(?:\n|$)",
         lambda match: match[1]
         if "VersionUpdateAndAskToRestartAsync" in match[1]
         else match[2],

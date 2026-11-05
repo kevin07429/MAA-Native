@@ -91,15 +91,16 @@ def merge_upstream(head, target):
         ):
             try:
                 command("python", ".github/scripts/resolve-update-conflicts.py")
+                command("git", "add", "-u")
                 remaining = command(
                     "git", "diff", "--name-only", "--diff-filter=U"
                 ).splitlines()
                 if not remaining:
-                    command("git", "add", "-u")
                     command("git", "commit", "-m", "Merge upstream update UI changes")
                     return
                 conflicts = remaining
-            except RuntimeError:
+            except RuntimeError as exception:
+                print(f"Known conflict resolution failed: {exception}", flush=True)
                 conflicts = command(
                     "git", "diff", "--name-only", "--diff-filter=U"
                 ).splitlines()
