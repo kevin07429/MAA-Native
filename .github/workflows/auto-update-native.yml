@@ -18,6 +18,7 @@ on:
       - ".github/scripts/auto-update-native.py"
       - ".github/scripts/resolve-update-conflicts.py"
       - ".github/scripts/build-native.ps1"
+      - ".github/workflows/auto-update-native.yml"
   workflow_dispatch:
     inputs:
       retry_conflict:
