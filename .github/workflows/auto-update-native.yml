@@ -14,6 +14,9 @@ on:
       - "CMakePresets.json"
       - "tools/wireless-native/**"
       - "tools/native-release/package_native.py"
+      - "tools/native-release/test_auto_update.py"
+      - ".github/scripts/auto-update-native.py"
+      - ".github/scripts/resolve-update-conflicts.py"
       - ".github/scripts/build-native.ps1"
   workflow_dispatch:
     inputs:
