@@ -14,6 +14,11 @@ SCRIPT = Path(__file__).resolve().parents[2] / ".github/scripts/auto-update-nati
 spec = importlib.util.spec_from_file_location("auto_update_native", SCRIPT)
 auto = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(auto)
+resolver_spec = importlib.util.spec_from_file_location(
+    "resolve_update_conflicts", SCRIPT.with_name("resolve-update-conflicts.py")
+)
+resolver = importlib.util.module_from_spec(resolver_spec)
+resolver_spec.loader.exec_module(resolver)
 
 
 class AutoUpdateTests(unittest.TestCase):
@@ -163,6 +168,20 @@ class AutoUpdateTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "temporary git error"):
                 self.prepare()
         self.assertFalse(Path("build-native/merge-conflict.json").exists())
+
+    def test_known_conflict_resolver_applies_selected_side(self):
+        root = Path(self.temp.name) / "src/MaaWpfGui"
+        target = root / "ViewModels/Dialogs/VersionUpdateDialogViewModel.cs"
+        target.parent.mkdir(parents=True)
+        target.write_text(
+            "before\n<<<<<<< HEAD\nnative\n=======\nupstream\n>>>>>>> dev-v2\nafter\n"
+        )
+        with patch.object(resolver, "ROOT", root):
+            resolver.resolve(
+                Path("ViewModels/Dialogs/VersionUpdateDialogViewModel.cs"),
+                lambda native, upstream: native,
+            )
+        self.assertEqual(target.read_text(), "before\nnative\nafter\n")
 
     def test_command_error_includes_stdout_and_stderr(self):
         result = subprocess.CompletedProcess(

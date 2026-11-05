@@ -60,6 +60,8 @@ var compatibility = service.GetMethod("GetCompatibilityVersion", BindingFlags.St
 foreach (var (input, expected) in new[] { ("v6.21.1-native.6", "v6.21.1"), ("v6.21.0-native.5", "v6.21.0"), ("v6.21.1-beta.1", "v6.21.1-beta.1"), ("v6.21.1", "v6.21.1"), ("v6.21.1-native.7+abcdef", "v6.21.1") })
     Check((string)compatibility.Invoke(null,[input])! == expected,"feature compatibility uses upstream base: " + input);
 var resolve = service.GetMethod("GetProgramAssetName", BindingFlags.Static | BindingFlags.NonPublic)!;
+var mirrorUris = service.GetMethod("GetMirrorAssetUris", BindingFlags.Static | BindingFlags.NonPublic)!;
+var apiMirrorUris = service.GetMethod("GetMirrorApiUris", BindingFlags.Static | BindingFlags.NonPublic)!;
 var validate = service.GetMethod("ValidateProgramArchive", BindingFlags.Static | BindingFlags.NonPublic)!;
 var inspect = assembly.GetType("MaaWpfGui.Services.PendingUpdateApplier", true)!.GetMethod("InspectLocalUpdatePackage")!;
 const string asset = "MAA-Native-v6.20.1-native.3-program-win-x64.zip";
@@ -74,6 +76,16 @@ void Check(bool condition, string description) {
     Console.WriteLine("PASS: " + description);
 }
 Check(Resolve(Release()) == asset, "native upgrade selects only its x64 program asset");
+var mirrors = (Uri[])mirrorUris.Invoke(null, [new Uri("https://github.com/kevin07429/MAA-Native/releases/download/v6.20.1-native.3/" + asset)])!;
+Check(mirrors.Length == 2 && mirrors[0].Host == "gh-proxy.com" && mirrors[1].Host == "ghfast.top", "native update has two domestic asset mirrors");
+var apiMirrors = (Uri[])apiMirrorUris.Invoke(null, [new Uri("https://api.github.com/repos/kevin07429/MAA-Native/releases/latest")])!;
+Check(apiMirrors.Length == 2 && apiMirrors.All(uri => uri.AbsolutePath.Contains("api.github.com/repos/kevin07429/MAA-Native/releases/latest", StringComparison.Ordinal)), "native update mirrors its public release lookup");
+try {
+    mirrorUris.Invoke(null, [new Uri("https://example.com/file.zip")]);
+    throw new Exception("An unrelated URL was accepted as a mirror source");
+} catch (TargetInvocationException exception) when (exception.InnerException is InvalidDataException) {
+    Check(true, "untrusted asset URLs are rejected by mirror resolution");
+}
 Check(Resolve(Release(), "v6.20.1-native.3") is null, "equal version is not reinstalled automatically");
 Check(Resolve(Release(), "v6.20.1-native.4") is null, "downgrade rejected");
 Check(Resolve(Release(), "v6.20.1-native.3", true) == asset, "explicit repair permits the same version");

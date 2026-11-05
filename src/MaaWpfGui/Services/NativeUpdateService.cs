@@ -17,6 +17,7 @@ using System;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -104,6 +105,103 @@ internal static class NativeUpdateService
         return uri;
     }
 
+    internal static Uri[] GetMirrorAssetUris(Uri uri)
+    {
+        if (uri.Scheme != Uri.UriSchemeHttps || uri.Host != "github.com" ||
+            !uri.AbsolutePath.StartsWith($"/{Repository}/releases/download/", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("Unexpected native update asset URL");
+        }
+
+        return [
+            new Uri("https://gh-proxy.com/" + uri.AbsoluteUri),
+            new Uri("https://ghfast.top/" + uri.AbsoluteUri),
+        ];
+    }
+
+    private static async Task<string?> GetAssetTextAsync(Uri uri)
+    {
+        string? result = await Instances.HttpService.GetStringAsync(uri).ConfigureAwait(false);
+        foreach (Uri mirror in GetMirrorAssetUris(uri))
+        {
+            result ??= await Instances.HttpService.GetStringAsync(mirror).ConfigureAwait(false);
+        }
+
+        return result;
+    }
+
+    private static async Task<bool> DownloadAssetAsync(Uri uri, string path)
+    {
+        if (await Instances.HttpService.DownloadFileAsync(uri, path).ConfigureAwait(false))
+        {
+            return true;
+        }
+
+        foreach (Uri mirror in GetMirrorAssetUris(uri))
+        {
+            if (await Instances.HttpService.DownloadFileAsync(mirror, path).ConfigureAwait(false))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static async Task<HttpResponseMessage> GetLatestReleaseResponseAsync()
+    {
+        Uri uri = new($"https://api.github.com/repos/{Repository}/releases/latest");
+        try
+        {
+            var response = await Instances.HttpService.GetAsync(uri).ConfigureAwait(false);
+            if (response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return response;
+            }
+
+            response.Dispose();
+        }
+        catch (Exception exception)
+        {
+            _logger.Warning(exception, "Direct native release lookup failed; trying mirrors");
+        }
+
+        foreach (Uri mirror in GetMirrorApiUris(uri))
+        {
+            try
+            {
+                var response = await Instances.HttpService.GetAsync(mirror).ConfigureAwait(false);
+                if (response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    return response;
+                }
+
+                response.Dispose();
+            }
+            catch (Exception exception)
+            {
+                _logger.Warning(exception, "Native release lookup failed through {MirrorHost}", mirror.Host);
+            }
+        }
+
+        throw new HttpRequestException("Native release information is unavailable from GitHub and its mirrors");
+    }
+
+    private static Uri[] GetMirrorApiUris(Uri uri)
+    {
+        if (uri.Scheme != Uri.UriSchemeHttps || uri.Host != "api.github.com" ||
+            uri.AbsolutePath != $"/repos/{Repository}/releases/latest" ||
+            !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
+        {
+            throw new InvalidDataException("Unexpected native release API URL");
+        }
+
+        return [
+            new Uri("https://gh-proxy.com/" + uri.AbsoluteUri),
+            new Uri("https://ghfast.top/" + uri.AbsoluteUri),
+        ];
+    }
+
     internal static async Task<CheckUpdateRetT> CheckAndDownloadAsync(bool allowSameVersion = false)
     {
         var settings = SettingsViewModel.VersionUpdateSettings;
@@ -115,7 +213,7 @@ internal static class NativeUpdateService
         string? temporary = null;
         try
         {
-            using var response = await Instances.HttpService.GetAsync(new Uri($"https://api.github.com/repos/{Repository}/releases/latest"));
+            using var response = await GetLatestReleaseResponseAsync();
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
                 return CheckUpdateRetT.AlreadyLatest;
@@ -138,7 +236,7 @@ internal static class NativeUpdateService
             {
                 return CheckUpdateRetT.FailedToGetInfo;
             }
-            string? checksumText = await Instances.HttpService.GetStringAsync(GetAssetUri(checksum));
+            string? checksumText = await GetAssetTextAsync(GetAssetUri(checksum));
             var match = Regex.Match(checksumText ?? string.Empty, @"\A([a-fA-F0-9]{64})(?:\s|$)");
             if (!match.Success)
             {
@@ -148,7 +246,7 @@ internal static class NativeUpdateService
             Directory.CreateDirectory(folder);
             temporary = Path.Combine(folder, assetName + ".download");
             OutputDownloadProgress(LocalizationHelper.GetString("VersionUpdate.NewVersionDownloading.GlobalSource") + " " + tag, downloading: true);
-            if (!await Instances.HttpService.DownloadFileAsync(GetAssetUri(asset), temporary))
+            if (!await DownloadAssetAsync(GetAssetUri(asset), temporary))
             {
                 return CheckUpdateRetT.UpdatePackageDownloadFailed;
             }

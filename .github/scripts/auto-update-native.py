@@ -78,6 +78,31 @@ def merge_upstream(head, target):
         conflicts = command(
             "git", "diff", "--name-only", "--diff-filter=U"
         ).splitlines()
+        resolvable = {
+            "src/MaaWpfGui/Models/ResourceUpdater.cs",
+            "src/MaaWpfGui/ViewModels/Dialogs/VersionUpdateDialogViewModel.cs",
+            "src/MaaWpfGui/ViewModels/UserControl/Settings/VersionUpdateSettingsUserControlModel.cs",
+            "src/MaaWpfGui/Views/UserControl/Settings/VersionUpdateSettingsUserControl.xaml",
+            "src/MaaWpfGui/Views/UserControl/GuideUserControl.xaml",
+        }
+        if conflicts and all(
+            name in resolvable or name.startswith("src/MaaWpfGui/Res/Localizations/")
+            for name in conflicts
+        ):
+            try:
+                command("python", ".github/scripts/resolve-update-conflicts.py")
+                remaining = command(
+                    "git", "diff", "--name-only", "--diff-filter=U"
+                ).splitlines()
+                if not remaining:
+                    command("git", "add", "-u")
+                    command("git", "commit", "-m", "Merge upstream update UI changes")
+                    return
+                conflicts = remaining
+            except RuntimeError:
+                conflicts = command(
+                    "git", "diff", "--name-only", "--diff-filter=U"
+                ).splitlines()
         if conflicts:
             report = Path("build-native/merge-conflict.json")
             report.parent.mkdir(parents=True, exist_ok=True)
