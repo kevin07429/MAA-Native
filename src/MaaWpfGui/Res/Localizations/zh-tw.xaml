@@ -415,6 +415,7 @@
     <system:String x:Key="Asst.Drop.ReportSkippedForPcClient">PC 端滑鼠為獨立渲染，可能遮擋掉落物及數量辨識。為避免錯誤資料污染資料池，已自動跳過本次回報{0}</system:String>
     <system:String x:Key="Asst.Drop.TotalDrop" xml:space="preserve">掉落統計：</system:String>
     <system:String x:Key="Asst.Fight.ActingCommandError">代理指揮失誤</system:String>
+    <system:String x:Key="Asst.Fight.AnnihilationEntryNotFound">未在終端待辦中找到剿滅入口，可能本週剿滅已完成，跳過剿滅</system:String>
     <system:String x:Key="Asst.Fight.CurrentSanity" xml:space="preserve">理智: {0}/{1}  </system:String>
     <system:String x:Key="Asst.Fight.ExpiringMedicineUsed">已使用 {0} 天內過期的理智藥</system:String>
     <system:String x:Key="Asst.Fight.MedicineInfo">藥: {0}, 庫存: {1}</system:String>
@@ -2130,6 +2131,7 @@ DEBUG 目錄下儲存的圖片有數量限制，超出後會自動清理舊圖�
     <system:String x:Key="TaskQueue.MoveUp">上移</system:String>
     <system:String x:Key="TaskQueue.MultiTasksShare.Tip">以下選項為多任務共用</system:String>
     <system:String x:Key="TaskQueue.NotSwitch">不切換</system:String>
+    <system:String x:Key="TaskQueue.OperProgress.ClearPlansConfirm">確定要清空全部幹員培養計畫嗎？此操作無法復原。</system:String>
     <system:String x:Key="TaskQueue.OperProgress.Detail">{key=TaskQueue.Task.OperProgress} {0}:{1} {2}</system:String>
     <system:String x:Key="TaskQueue.OperProgress.Elite">精英化</system:String>
     <system:String x:Key="TaskQueue.OperProgress.EliteTarget">精英化 {0}</system:String>

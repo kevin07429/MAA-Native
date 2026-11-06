@@ -1,10 +1,14 @@
-# MAA Native v6.21.4-native.17
+# MAA Native v6.21.4-native.18
 
-自动同步官方 dev-v2 `0b68329ab98d516fc81a522a4ef78d48e11d6dc1`，保留手机适配、快速截图、后台控制与暂停/恢复。
+自动同步官方 dev-v2 `45976ebaf605c6cec471faff6013d5162f817523`，保留手机适配、快速截图、后台控制与暂停/恢复。
 
 ## 本次官方提交
 
-0b68329ab9 chore: Auto update by pre-commit hooks https://github.com/MaaAssistantArknights/MaaAssistantArknights/actions/runs/42109003784 [skip changelog]
+45976ebaf6 perf: 外服已支援遊戲內暫停期間部署，移除伺服器開關 (#19135)
+dc6a49d6b1 fix: 未知 DLL 检测放行 WebGPU 后端依赖的 dxcompiler.dll 与 dxil.dll
+f6ac540607 chore: 靜默略過時在介面日誌顯示提示（剿滅入口、拜訪好友） (#19098)
+20b67dc7cb feat: 干员培养清空计划增加二次确认 (#19140)
+15e4dedd67 perf: 库存保持计划列表支持滚轮边缘接力 (#19137)
 
 完整包用于新安装；程序更新包由内置更新器使用，保留配置、数据、资源和壁纸。资源继续同步官方 MaaResource。
 
