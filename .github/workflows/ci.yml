@@ -884,6 +884,7 @@ jobs:
             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   native-release:
+    # Shared native downloads retry transient HTTP failures and validate ZIPs before extraction.
     # Shared native packaging preserves wallpapers in program updates and includes them in full packages.
     # Shared protocol checks cover obsolete runtime backups and native/base feature compatibility.
     # Native regression tests also cover capture fallback canvases and left-anchored training text.

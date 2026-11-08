@@ -3,6 +3,7 @@ $ErrorActionPreference='Stop'
 if($Version -notmatch '^v([0-9]+\.[0-9]+\.[0-9]+)-native\.([0-9]+)$'){throw 'Invalid native release version'}
 $fileVersion=$Matches[1]+'.'+$Matches[2]
 function Invoke-Checked([scriptblock]$Command){ & $Command; if($LASTEXITCODE -ne 0){throw ('Build command failed: '+$Command)} }
+Invoke-Checked { python tools/native-release/test_dependency_download.py }
 $captureHash=[BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes(([IO.File]::ReadAllText((Join-Path (Get-Location) 'tools/wireless-native/MaaNativeCap.java'))).Replace("`r`n","`n")))).Replace('-','').ToLowerInvariant()
 if($captureHash -ne (Get-Content tools/wireless-native/capture-source.sha256 -Raw).Trim()){
  throw 'Capture source changed. Run .github/scripts/build-capture-jar.ps1 with an Android SDK and commit the rebuilt JAR and source checksum.'
@@ -16,10 +17,10 @@ Invoke-Checked { cmake --build build-native --config Release --target MaaCore MA
 $buildRoot=(Resolve-Path build-native).Path
 Invoke-Checked { dotnet publish src/MaaWpfGui/MaaWpfGui.csproj -c Release -r win-x64 --self-contained true -p:DisableBeauty=True -p:Platform=x64 "-p:InformationalVersion=$Version" "-p:Version=$($Version.TrimStart('v'))" "-p:FileVersion=$fileVersion" "-p:AssemblyVersion=$fileVersion" -p:PostBuildEvent= "-p:SolutionDir=$buildRoot/" "-p:OutputPath=$buildRoot/gui-bin/" -o build-native/gui-publish }
 $headers=@{'User-Agent'='MAA-Native-release'}
-$framework=Invoke-RestMethod -Uri 'https://api.github.com/repos/MaaXYZ/MaaFramework/releases/tags/v5.13.0' -Headers $headers
+$framework=Invoke-RestMethod -Uri 'https://api.github.com/repos/MaaXYZ/MaaFramework/releases/tags/v5.13.0' -Headers $headers -MaximumRetryCount 5 -RetryIntervalSec 5 -TimeoutSec 120
 $unitAsset=$framework.assets | Where-Object { $_.name -like '*win-x86_64*.zip' } | Select-Object -First 1
 if(-not $unitAsset){throw 'MAA control-unit runtime not found'}
-Invoke-WebRequest -Uri $unitAsset.browser_download_url -OutFile build-native/control-units.zip
+Invoke-Checked { python tools/native-release/download_dependency.py $unitAsset.browser_download_url build-native/control-units.zip --zip }
 Expand-Archive -LiteralPath build-native/control-units.zip -DestinationPath build-native/control-units
 $runtime=Join-Path (Get-Location) 'build-native/runtime'
 New-Item -ItemType Directory -Path $runtime | Out-Null
@@ -27,11 +28,11 @@ foreach($pattern in @('*AdbControlUnit*.dll','*Win32ControlUnit*.dll')){
  Get-ChildItem build-native/control-units -Recurse -File -Filter $pattern | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $runtime }
 }
 Copy-Item build-native/bin/Release/MAA.Updater.exe $runtime
-Invoke-WebRequest -Uri 'https://github.com/MaaAssistantArknights/MaaResource/archive/refs/heads/main.zip' -OutFile build-native/official-resource.zip
+Invoke-Checked { python tools/native-release/download_dependency.py 'https://github.com/MaaAssistantArknights/MaaResource/archive/refs/heads/main.zip' build-native/official-resource.zip --zip }
 Expand-Archive -LiteralPath build-native/official-resource.zip -DestinationPath build-native/official-resource
 Copy-Item -LiteralPath resource -Destination build-native/merged-resource -Recurse
 Copy-Item -Path build-native/official-resource/MaaResource-main/resource/* -Destination build-native/merged-resource -Recurse -Force
-Invoke-WebRequest -Uri 'https://dl.google.com/android/repository/platform-tools-latest-windows.zip' -OutFile build-native/platform-tools.zip
+Invoke-Checked { python tools/native-release/download_dependency.py 'https://dl.google.com/android/repository/platform-tools-latest-windows.zip' build-native/platform-tools.zip --zip }
 Expand-Archive -LiteralPath build-native/platform-tools.zip -DestinationPath build-native/adb
 Invoke-Checked { python tools/native-release/package_native.py --gui build-native/gui-publish --core build-native/bin/Release --runtime build-native/runtime --resources build-native/merged-resource --adb build-native/adb/platform-tools --output build-native/assets --version $Version }
 
