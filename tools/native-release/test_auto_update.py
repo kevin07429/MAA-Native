@@ -233,6 +233,31 @@ class AutoUpdateTests(unittest.TestCase):
             )
         self.assertEqual(target.read_text(encoding="utf-8"), original)
 
+    def test_successful_resolver_exit_does_not_hide_unresolved_conflicts(self):
+        self.seed()
+        guide = Path("src/MaaWpfGui/Views/UserControl/GuideUserControl.xaml")
+        guide.write_text('<UserControl Content="native" />\n', encoding="utf-8")
+        self.git("commit", "-am", "native guide")
+        head = self.git("rev-parse", "HEAD")
+        self.git("checkout", "upstream/dev-v2")
+        guide.write_text('<UserControl Content="upstream" />\n', encoding="utf-8")
+        self.git("commit", "-am", "upstream guide")
+        target = self.git("rev-parse", "HEAD")
+        self.git("checkout", "native")
+        script = Path(".github/scripts/resolve-update-conflicts.py")
+        script.parent.mkdir(parents=True)
+        script.write_text(
+            "# Deliberately leave the conflict untouched.\n", encoding="utf-8"
+        )
+        with self.assertRaisesRegex(RuntimeError, "git merge"):
+            auto.merge_upstream(head, target)
+        self.assertEqual(self.git("rev-parse", "HEAD"), head)
+        self.assertIn(
+            str(guide).replace("\\", "/"),
+            self.git("diff", "--name-only", "--diff-filter=U"),
+        )
+        self.assertTrue(Path("build-native/merge-conflict.json").exists())
+
     def test_upstream_update_resolves_and_stages_known_gui_conflicts(self):
         self.seed()
         dialog = Path(
