@@ -1,8 +1,10 @@
 """Exercise release dependency downloads against a real local HTTP server."""
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import hashlib
 import importlib.util
 import io
+import json
 from pathlib import Path
 import tempfile
 import threading
@@ -113,6 +115,66 @@ class DependencyDownloadTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(RuntimeError, "3 attempts"):
                 self.module.run_with_retries(["python"], attempts=3, delay=0)
+
+    def test_github_release_uses_asset_api_and_verifies_digest(self):
+        asset = {
+            "name": "dependency.zip",
+            "url": "https://api.github.com/repos/o/r/releases/assets/123",
+            "size": len(self.archive),
+            "digest": "sha256:" + hashlib.sha256(self.archive).hexdigest(),
+        }
+
+        def run(command, **kwargs):
+            if "application/octet-stream" in command:
+                self.assertEqual(command[-1], asset["url"])
+                kwargs["stdout"].write(self.archive)
+                return subprocess.CompletedProcess(command, 0, stderr=b"")
+            self.assertEqual(command, ["gh", "api", "repos/o/r/releases/tags/v1"])
+            return subprocess.CompletedProcess(
+                command, 0, stdout=json.dumps({"assets": [asset]}).encode(), stderr=b""
+            )
+
+        with (
+            patch.object(self.module.subprocess, "run", side_effect=run),
+            patch.object(
+                self.module,
+                "urlopen",
+                side_effect=AssertionError("browser download must not be used"),
+            ),
+        ):
+            self.module.download(
+                "https://github.com/o/r/releases/download/v1/dependency.zip",
+                self.destination,
+                attempts=1,
+                validate_zip=True,
+            )
+        self.assertEqual(self.destination.read_bytes(), self.archive)
+
+    def test_maadeps_prefetch_uses_pinned_version_and_expected_cache(self):
+        root = Path(self.temp.name)
+        asset = {
+            "name": "MaaDeps-x64-windows.tar.xz",
+            "browser_download_url": "https://github.com/o/r/releases/download/v1/MaaDeps-x64-windows.tar.xz",
+        }
+        with (
+            patch("runpy.run_path", return_value={"REPO": "o/r", "VERSION": "v1"}),
+            patch.object(
+                subprocess,
+                "run",
+                return_value=subprocess.CompletedProcess(
+                    ["gh"],
+                    0,
+                    stdout=json.dumps({"assets": [asset]}).encode(),
+                    stderr=b"",
+                ),
+            ),
+            patch.object(self.module, "download") as download,
+        ):
+            self.module.prefetch_maadeps("x64-windows", root=root)
+        download.assert_called_once_with(
+            asset["browser_download_url"],
+            root / "src/MaaUtils/MaaDeps/tarball" / asset["name"],
+        )
 
 
 if __name__ == "__main__":
