@@ -3,11 +3,30 @@
 import argparse
 from http.client import IncompleteRead
 from pathlib import Path
+import subprocess
 import tempfile
 import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 import zipfile
+
+
+def run_with_retries(command, *, attempts=6, delay=5):
+    for attempt in range(1, attempts + 1):
+        result = subprocess.run(command, check=False)
+        if result.returncode == 0:
+            return
+        if attempt == attempts:
+            raise RuntimeError(
+                f"Dependency command failed after {attempt} attempts: {command}"
+            )
+        wait = min(delay * 2 ** (attempt - 1), 60)
+        print(
+            f"Dependency command attempt {attempt}/{attempts} failed; retrying in {wait}s",
+            flush=True,
+        )
+        time.sleep(wait)
+    raise ValueError("attempts must be positive")
 
 
 def download(url, destination, *, attempts=6, delay=5, timeout=600, validate_zip=False):
@@ -77,8 +96,14 @@ def download(url, destination, *, attempts=6, delay=5, timeout=600, validate_zip
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("url")
-    parser.add_argument("destination", type=Path)
+    parser.add_argument("url", nargs="?")
+    parser.add_argument("destination", nargs="?", type=Path)
     parser.add_argument("--zip", action="store_true", dest="validate_zip")
+    parser.add_argument("--run", nargs=argparse.REMAINDER)
     args = parser.parse_args()
-    download(args.url, args.destination, validate_zip=args.validate_zip)
+    if args.run:
+        run_with_retries(args.run)
+    elif args.url and args.destination:
+        download(args.url, args.destination, validate_zip=args.validate_zip)
+    else:
+        parser.error("provide URL and destination, or --run followed by a command")

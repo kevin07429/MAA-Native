@@ -8,7 +8,7 @@ $captureHash=[BitConverter]::ToString([Security.Cryptography.SHA256]::Create().C
 if($captureHash -ne (Get-Content tools/wireless-native/capture-source.sha256 -Raw).Trim()){
  throw 'Capture source changed. Run .github/scripts/build-capture-jar.ps1 with an Android SDK and commit the rebuilt JAR and source checksum.'
 }
-Invoke-Checked { python tools/maadeps-download.py x64-windows }
+Invoke-Checked { python tools/native-release/download_dependency.py --run python tools/maadeps-download.py x64-windows }
 Invoke-Checked { cmake -B build-native --preset windows-publish-x64 -DBUILD_DEBUG_DEMO=OFF -DBUILD_RESOURCE_UPDATER=OFF -DBUILD_NATIVE_ADAPTIVE_TESTS=ON "-DNATIVE_APP_VERSION=$Version" }
 Invoke-Checked { cmake --build build-native --config Debug --target MaaCore native_adaptive_tests task_pause_tests --parallel 4 }
 Invoke-Checked { & build-native/bin/Debug/native_adaptive_tests.exe }
