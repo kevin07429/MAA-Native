@@ -7,6 +7,8 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
+import subprocess
 import zipfile
 
 SCRIPT = Path(__file__).with_name("download_dependency.py")
@@ -94,6 +96,23 @@ class DependencyDownloadTests(unittest.TestCase):
         self.assertEqual(self.requests, 1)
         self.assertFalse(self.destination.exists())
         self.assertEqual(list(self.destination.parent.iterdir()), [])
+
+    def test_dependency_command_retries_then_succeeds(self):
+        command = ["python", "tools/maadeps-download.py", "x64-windows"]
+        results = [subprocess.CompletedProcess(command, code) for code in (1, 1, 0)]
+        with patch.object(self.module.subprocess, "run", side_effect=results) as run:
+            self.module.run_with_retries(command, attempts=3, delay=0)
+        self.assertEqual(run.call_count, 3)
+        run.assert_called_with(command, check=False)
+
+    def test_dependency_command_exhaustion_never_reports_success(self):
+        with patch.object(
+            self.module.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(["python"], 1),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "3 attempts"):
+                self.module.run_with_retries(["python"], attempts=3, delay=0)
 
 
 if __name__ == "__main__":
