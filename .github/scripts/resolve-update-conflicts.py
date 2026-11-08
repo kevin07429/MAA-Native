@@ -3,8 +3,31 @@
 from pathlib import Path
 import re
 import sys
+import xml.etree.ElementTree as ET
 
 ROOT = Path("src/MaaWpfGui")
+CONFLICT_MARKER = r"^(?:<{7}|={7}|>{7}|\|{7})(?:\s|$)"
+
+
+def validate(path, text):
+    if re.search(CONFLICT_MARKER, text, re.MULTILINE):
+        raise RuntimeError(f"Unresolved conflict markers in {path}")
+    if path.suffix == ".xaml":
+        try:
+            ET.fromstring(text)
+        except ET.ParseError as error:
+            raise RuntimeError(f"Invalid resolved XAML in {path}: {error}") from error
+
+
+def native_guide(native, upstream):
+    # The native introduction deliberately replaces upstream contact/documentation UI.
+    # Keep its complete conflict side, not a comment-delimited upstream suffix:
+    # upstream may move the agreement and remove the ScrollViewer in the same hunk.
+    if not all(key in native for key in ("About.NativeEditionInfo", "Guide.ViewLog")):
+        raise RuntimeError(
+            "Unrecognized guide conflict outside the native introduction"
+        )
+    return native
 
 
 def resolve(relative, chooser):
@@ -16,6 +39,7 @@ def resolve(relative, chooser):
         text,
         flags=re.MULTILINE | re.DOTALL,
     )
+    validate(path, text)
     if count:
         path.write_text(text, encoding="utf-8")
 
@@ -34,12 +58,7 @@ def main():
     )
     resolve(
         Path("Views/UserControl/GuideUserControl.xaml"),
-        lambda native, upstream: native
-        + upstream[
-            upstream.index(
-                "                                    <!--\n                                        UniformSpacingPanel"
-            ) :
-        ],
+        native_guide,
     )
 
     resource_updater = ROOT / "Models/ResourceUpdater.cs"

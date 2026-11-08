@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import subprocess
 import zipfile
+import xml.etree.ElementTree as ET
 
 REPO = "kevin07429/MAA-Native"
 UPSTREAM = "MaaAssistantArknights/MaaAssistantArknights"
@@ -91,7 +92,21 @@ def merge_upstream(head, target):
         ):
             try:
                 command("python", ".github/scripts/resolve-update-conflicts.py")
-                command("git", "add", "-u")
+                # A zero exit status alone must never mark leftover conflicts resolved.
+                for name in conflicts:
+                    text = Path(name).read_text(encoding="utf-8-sig")
+                    if re.search(
+                        r"^(?:<{7}|={7}|>{7}|\|{7})(?:\s|$)", text, re.MULTILINE
+                    ):
+                        raise RuntimeError("Unresolved conflict markers in " + name)
+                    if name.endswith(".xaml"):
+                        try:
+                            ET.fromstring(text)
+                        except ET.ParseError as error:
+                            raise RuntimeError(
+                                f"Invalid resolved XAML in {name}: {error}"
+                            ) from error
+                command("git", "add", "--", *conflicts)
                 remaining = command(
                     "git", "diff", "--name-only", "--diff-filter=U"
                 ).splitlines()

@@ -5,11 +5,13 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
+import zipfile
 
 SCRIPT = Path(__file__).resolve().parents[2] / ".github/scripts/auto-update-native.py"
 spec = importlib.util.spec_from_file_location("auto_update_native", SCRIPT)
@@ -198,6 +200,8 @@ class AutoUpdateTests(unittest.TestCase):
         for variant in (
             fixture,
             fixture.replace("                                    ", "    "),
+            re.sub(r"<!--.*?-->", "", fixture, flags=re.DOTALL),
+            fixture.replace("\n", "\r\n"),
         ):
             with self.subTest(reindented=variant != fixture):
                 guide.write_text(variant, encoding="utf-8")
@@ -210,6 +214,34 @@ class AutoUpdateTests(unittest.TestCase):
                 self.assertNotIn("Guide.Documentation.Title", resolved)
                 self.assertNotIn("Guide.GitHubIssue.Title", resolved)
                 self.assertNotIn("<<<<<<<", resolved)
+
+    def test_guide_partial_hunk_keeps_shared_agreement_and_other_upstream_changes(self):
+        self.seed()
+        guide = Path("src/MaaWpfGui/Views/UserControl/GuideUserControl.xaml")
+        guide.write_text(
+            '<UserControl xmlns:controls="urn:controls">\n'
+            "<UpstreamImprovement />\n<Panel>\n<<<<<<< HEAD\n"
+            '<controls:TextBlock Text="{DynamicResource About.NativeEditionInfo}" />\n'
+            '<controls:TextBlock Text="{DynamicResource Guide.ViewLog}" />\n'
+            "=======\n<UpstreamIntroduction />\n>>>>>>> dev-v2\n"
+            '<Agreement Key="Guide.Agreement.Link" />\n</Panel>\n</UserControl>\n',
+            encoding="utf-8",
+        )
+        resolver.main()
+        result = guide.read_text(encoding="utf-8")
+        ET.fromstring(result)
+        self.assertIn("UpstreamImprovement", result)
+        self.assertEqual(result.count("Guide.Agreement.Link"), 1)
+        self.assertNotIn("UpstreamIntroduction", result)
+
+    def test_unrecognized_guide_conflict_is_not_silently_discarded(self):
+        self.seed()
+        guide = Path("src/MaaWpfGui/Views/UserControl/GuideUserControl.xaml")
+        original = "<UserControl>\n<<<<<<< HEAD\n<Unrelated />\n=======\n<NewFeature />\n>>>>>>> dev-v2\n</UserControl>\n"
+        guide.write_text(original, encoding="utf-8")
+        with self.assertRaisesRegex(RuntimeError, "Unrecognized guide conflict"):
+            resolver.main()
+        self.assertEqual(guide.read_text(encoding="utf-8"), original)
 
     def test_resolver_rejects_leftover_markers_before_writing(self):
         target = Path("src/MaaWpfGui/Views/UserControl/GuideUserControl.xaml")
@@ -232,6 +264,73 @@ class AutoUpdateTests(unittest.TestCase):
                 Path("Views/UserControl/GuideUserControl.xaml"), lambda a, b: a
             )
         self.assertEqual(target.read_text(encoding="utf-8"), original)
+
+    def test_known_resource_and_localization_conflicts_still_resolve(self):
+        self.seed()
+        resources = Path("src/MaaWpfGui/Models/ResourceUpdater.cs")
+        resources.write_text(
+            "class ResourceUpdater {\n<<<<<<< HEAD\n            NativePreparation();\n"
+            "            var (ret, uri, releaseNote) = OldCall();\n=======\n"
+            "            var (ret, uri, releaseNote) = NewCall();\n>>>>>>> dev-v2\n}\n",
+            encoding="utf-8",
+        )
+        localization = Path("src/MaaWpfGui/Res/Localizations/en-us.xaml")
+        localization.parent.mkdir(parents=True)
+        localization.write_text(
+            "<Resources>\n<<<<<<< HEAD\n<Native />\n=======\n<Upstream />\n>>>>>>> dev-v2\n</Resources>\n",
+            encoding="utf-8",
+        )
+        resolver.main()
+        result = resources.read_text(encoding="utf-8")
+        self.assertIn("NativePreparation();", result)
+        self.assertIn("NewCall();", result)
+        self.assertNotIn("OldCall();", result)
+        self.assertEqual(
+            len(ET.fromstring(localization.read_text(encoding="utf-8"))), 2
+        )
+
+    def previous_resources_fixture(
+        self, entry="resource/version.json", bad_digest=False
+    ):
+        archive = Path("previous.zip")
+        with zipfile.ZipFile(archive, "w") as package:
+            package.writestr(entry, '{"version":"previous"}')
+            package.writestr("MAA.exe", "not a resource")
+        asset = self.release["assets"][0]
+        asset["digest"] = "sha256:" + (
+            "bad" if bad_digest else hashlib.sha256(archive.read_bytes()).hexdigest()
+        )
+        auto.PLAN.parent.mkdir()
+        auto.PLAN.write_text(
+            json.dumps({"previous_release": self.release}), encoding="utf-8"
+        )
+
+        def download(*args):
+            self.assertEqual(args[:3], ("gh", "release", "download"))
+            (Path(args[-1]) / asset["name"]).write_bytes(archive.read_bytes())
+            return ""
+
+        with patch.object(auto, "command", side_effect=download):
+            auto.previous_resources()
+
+    def test_previous_resources_are_verified_and_extracted_without_program_files(self):
+        self.previous_resources_fixture()
+        root = Path("build-native/previous-client")
+        self.assertEqual(
+            json.loads((root / "resource/version.json").read_text()),
+            {"version": "previous"},
+        )
+        self.assertFalse((root / "MAA.exe").exists())
+
+    def test_previous_resources_reject_bad_digest(self):
+        with self.assertRaisesRegex(RuntimeError, "digest mismatch"):
+            self.previous_resources_fixture(bad_digest=True)
+        self.assertFalse(Path("build-native/previous-client").exists())
+
+    def test_previous_resources_reject_archive_path_traversal(self):
+        with self.assertRaisesRegex(RuntimeError, "Unsafe archive path"):
+            self.previous_resources_fixture(entry="resource/../../escape.json")
+        self.assertFalse(Path("build-native/escape.json").exists())
 
     def test_successful_resolver_exit_does_not_hide_unresolved_conflicts(self):
         self.seed()
