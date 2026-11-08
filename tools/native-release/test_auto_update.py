@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+import xml.etree.ElementTree as ET
 
 SCRIPT = Path(__file__).resolve().parents[2] / ".github/scripts/auto-update-native.py"
 spec = importlib.util.spec_from_file_location("auto_update_native", SCRIPT)
@@ -19,6 +20,7 @@ resolver_spec = importlib.util.spec_from_file_location(
 )
 resolver = importlib.util.module_from_spec(resolver_spec)
 resolver_spec.loader.exec_module(resolver)
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 class AutoUpdateTests(unittest.TestCase):
@@ -186,6 +188,50 @@ class AutoUpdateTests(unittest.TestCase):
                 lambda native, upstream: native,
             )
         self.assertEqual(target.read_text(), "before\nnative\nafter\n")
+
+    def test_real_guide_redesign_preserves_one_native_panel_and_agreement(self):
+        self.seed()
+        guide = Path("src/MaaWpfGui/Views/UserControl/GuideUserControl.xaml")
+        fixture = (FIXTURES / "guide-upstream-redesign.xaml.conflict").read_text(
+            encoding="utf-8-sig"
+        )
+        for variant in (
+            fixture,
+            fixture.replace("                                    ", "    "),
+        ):
+            with self.subTest(reindented=variant != fixture):
+                guide.write_text(variant, encoding="utf-8")
+                resolver.main()
+                resolved = guide.read_text(encoding="utf-8")
+                ET.fromstring(resolved)
+                self.assertEqual(resolved.count("About.NativeEditionInfo"), 1)
+                self.assertEqual(resolved.count("Guide.ViewLog"), 1)
+                self.assertEqual(resolved.count("Guide.Agreement.Link"), 1)
+                self.assertNotIn("Guide.Documentation.Title", resolved)
+                self.assertNotIn("Guide.GitHubIssue.Title", resolved)
+                self.assertNotIn("<<<<<<<", resolved)
+
+    def test_resolver_rejects_leftover_markers_before_writing(self):
+        target = Path("src/MaaWpfGui/Views/UserControl/GuideUserControl.xaml")
+        target.parent.mkdir(parents=True)
+        original = "<UserControl>\n<<<<<<< HEAD\nunclosed conflict\n</UserControl>\n"
+        target.write_text(original, encoding="utf-8")
+        with self.assertRaisesRegex(RuntimeError, "conflict"):
+            resolver.resolve(
+                Path("Views/UserControl/GuideUserControl.xaml"), lambda a, b: a
+            )
+        self.assertEqual(target.read_text(encoding="utf-8"), original)
+
+    def test_resolver_rejects_invalid_xaml_before_writing(self):
+        target = Path("src/MaaWpfGui/Views/UserControl/GuideUserControl.xaml")
+        target.parent.mkdir(parents=True)
+        original = "<UserControl>\n<<<<<<< HEAD\n<Broken>\n=======\n<Valid />\n>>>>>>> dev-v2\n</UserControl>\n"
+        target.write_text(original, encoding="utf-8")
+        with self.assertRaisesRegex(RuntimeError, "XAML"):
+            resolver.resolve(
+                Path("Views/UserControl/GuideUserControl.xaml"), lambda a, b: a
+            )
+        self.assertEqual(target.read_text(encoding="utf-8"), original)
 
     def test_upstream_update_resolves_and_stages_known_gui_conflicts(self):
         self.seed()
