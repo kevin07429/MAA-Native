@@ -2046,7 +2046,7 @@ public class TaskQueueViewModel : Screen
             return;
         }
 
-        await LinkStartWithTasks(taskQueue, taskItem.Index);
+        await LinkStartWithTasks(taskQueue.Skip(taskItem.Index).ToArray());
     }
 
     /// <summary>
@@ -2106,7 +2106,7 @@ public class TaskQueueViewModel : Screen
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
 
-        if (result == MessageBoxResult.Yes)
+        if (result == MessageBoxResult.Yes && _runningState.GetIdle())
         {
             var index = taskItem.Index;
             if (index < ConfigFactory.CurrentConfig.TaskQueue.Count)
@@ -2268,7 +2268,7 @@ public class TaskQueueViewModel : Screen
                 "Clear tasks warning!",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
-            if (result == MessageBoxResult.Yes)
+            if (result == MessageBoxResult.Yes && _runningState.GetIdle())
             {
                 TaskItemViewModels.Clear();
             }
@@ -2482,7 +2482,7 @@ public class TaskQueueViewModel : Screen
 
         using var log = new LogScope(_logger);
         await TaskQueueSerializingLock.WaitAsync();
-        await LinkStartWithTasks(ConfigFactory.CurrentConfig.TaskQueue);
+        await LinkStartWithTasks(ConfigFactory.CurrentConfig.TaskQueue.ToArray());
         TaskQueueSerializingLock.Release();
     }
 
@@ -2530,7 +2530,7 @@ public class TaskQueueViewModel : Screen
     }
 #endif
 
-    public async Task LinkStartWithTasks(IEnumerable<BaseTask> tasks, int? startIndex = null)
+    public async Task LinkStartWithTasks(IEnumerable<BaseTask> tasks)
     {
         if (!_runningState.Idle)
         {
@@ -2631,6 +2631,11 @@ public class TaskQueueViewModel : Screen
         int participatingChainCount = 0;
         List<int> coreTaskIds = [];
         bool serializeFailed = false;
+
+        for (int i = 0; i < ConfigFactory.CurrentConfig.TaskQueue.Count; i++)
+        {
+            SetTaskItemStatus(i, TaskItemStatus.Skipped);
+        }
         foreach (var item in tasks)
         {
             var index = ConfigFactory.CurrentConfig.TaskQueue.IndexOf(item);
@@ -2639,9 +2644,8 @@ public class TaskQueueViewModel : Screen
                 item.TaskType,
                 item.NameOrTaskType,
                 item.IsEnable);
-            if ((startIndex is int firstTaskIndex && index < firstTaskIndex) || !IsTaskEnable(item))
+            if (!IsTaskEnable(item))
             {
-                SetTaskStatus(index, TaskItemStatus.Skipped);
                 continue;
             }
 
@@ -2664,16 +2668,15 @@ public class TaskQueueViewModel : Screen
                             itemViewModel.SetTaskIds(taskIdList);
                             participatingChainCount += taskIdList.Count(id => id > 0);
                         }
-
+                        SetTaskItemStatus(index, TaskItemStatus.Idle);
                         break;
                     case false:
                         serializeFailed = true;
                         AddLog(LocalizationHelper.GetStringFormat("TaskQueue.TaskSerialize.Error", LocalizationHelper.GetString(item.TaskType.LocalizationKey()), item.NameOrTaskType), UiLogColor.Error);
-                        SetTaskStatus(index, TaskItemStatus.Error);
+                        SetTaskItemStatus(index, TaskItemStatus.Error);
                         break;
                     case null:
                         AddLog(LocalizationHelper.GetStringFormat("TaskQueue.TaskAppend.Skip", LocalizationHelper.GetString(item.TaskType.LocalizationKey()), item.NameOrTaskType), UiLogColor.Info);
-                        SetTaskStatus(index, TaskItemStatus.Skipped);
                         break;
                 }
             }
@@ -2715,7 +2718,6 @@ public class TaskQueueViewModel : Screen
         AchievementTrackerHelper.Instance.SetProgress(AchievementIds.TaskChainKing, count);
 
         taskRet &= Instances.AsstProxy.AsstStart();
-
         if (taskRet)
         {
             AddLog(LocalizationHelper.GetString("TaskQueue.Running"));
@@ -2732,7 +2734,7 @@ public class TaskQueueViewModel : Screen
         AchievementTrackerHelper.Instance.MissionStartCountAdd();
         AchievementTrackerHelper.Instance.UseDailyAdd();
 
-        static void SetTaskStatus(int index, TaskItemStatus status)
+        static void SetTaskItemStatus(int index, TaskItemStatus status)
         {
             if (index < 0 || index >= Instances.TaskQueueViewModel.TaskItemViewModels.Count)
             {

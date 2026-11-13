@@ -77,7 +77,7 @@ bool asst::BattleHelper::calc_tiles_info(const std::string& stage_name, double s
     m_side_tile_info = std::move(calc_result.side_tile_info);
     m_retreat_button_pos = calc_result.retreat_button;
     m_skill_button_pos = calc_result.skill_button;
-    m_has_multi_stages = calc_result.has_multi_stages;
+    m_has_multi_stages = calc_result.has_multi_phases;
 
     return true;
 }
@@ -99,7 +99,7 @@ void asst::BattleHelper::adapt_tile_layout(TilePack::result_type& layout, double
     for (auto& [_, tile] : layout.side_tile_info) {
         tile.pos = project(Map::TileCalc2::get_tile_world_pos(m_map_data, tile.loc.y, tile.loc.x), true, camera_shift);
     }
-    const double center = layout.has_multi_stages ? m_map_data.view[0].x : 0;
+    const double center = layout.has_multi_phases ? m_map_data.view[0].x : 0;
     layout.retreat_button =
         project({ -Map::TileCalc2::rel_pos_x + center, Map::TileCalc2::rel_pos_y, Map::TileCalc2::rel_pos_z }, true);
     layout.skill_button =
@@ -363,8 +363,8 @@ bool asst::BattleHelper::update_deployment(bool init, const cv::Mat& reusable, b
 }
 
 // if side = true, get top view of the selected operator, tile size is 5x5
-// has_multi_stages: does map have multi stages, e.g. TN-1 ~ TN-4
-cv::Mat asst::BattleHelper::get_top_view(const cv::Mat& cam_img, bool side, bool has_multi_stages)
+// has_multi_phases: does map have multi phases, e.g. TN-1 ~ TN-4
+cv::Mat asst::BattleHelper::get_top_view(const cv::Mat& cam_img, bool side, bool has_multi_phases)
 {
     if (!side) {
         return cv::Mat {}; // TODO
@@ -384,7 +384,7 @@ cv::Mat asst::BattleHelper::get_top_view(const cv::Mat& cam_img, bool side, bool
     };
     std::vector<cv::Point2f> screen_points;
     for (const auto& point : world_points) {
-        cv::Vec3d temp { point.x + (has_multi_stages ? m_map_data.view[0].x : 0), -point.y, Map::TileCalc2::rel_pos_z };
+        cv::Vec3d temp { point.x + (has_multi_phases ? m_map_data.view[0].x : 0), -point.y, Map::TileCalc2::rel_pos_z };
         auto screen_pt = Config.get_options().native_resolution
                              ? adaptive::project_battle(m_map_data, temp, true, cam_img.cols, cam_img.rows)
                              : Map::TileCalc2::world_to_screen(m_map_data, temp, true);

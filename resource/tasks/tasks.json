@@ -298,7 +298,7 @@
         "text": [],
         "ocrReplaceDoc": "和 ClickStageName 同步",
         "ocrReplace": [
-            ["OPERATION", ""],
+            ["(O|D)PERATION", ""],
             ["-\\]", "-1"],
             [" ", ""],
             ["s", "S"],
@@ -308,13 +308,13 @@
             ["t", "T"],
             [":", ""],
             ["'", ""],
+            ["\\*$", ""],
             ["(H\\d+)O(?=-)", "${1}0"],
             ["(-\\d+)O", "${1}0"],
             ["([A-Z])0(?=-)", "${1}O"],
             [".*?([A-Z]{2}-EX-\\d+)", "$1"]
         ],
-        "roi": [923, 81, 82, 32],
-        "roiDoc": "只框关卡码本身：新 OCR 会把左侧 OPERATION 装饰标签与关卡码合并成一个词条，且标签前几个字母常识别错误（BATION/BRATION/SPFRATION），OPERATION 替换规则随之失效；关卡码右侧另有美术角标点。各服 UI 同构，标签与角标均落在 roi 外（实测繁中服量取）"
+        "roi": [845, 72, 220, 43]
     },
     "StageNavigationByTemplateMatchBegin": {
         "doc": "模板匹配导航入口（对应 OCR 的 StageNavigationBegin）",
@@ -2105,9 +2105,10 @@
         "next": ["SignInEventReturn"]
     },
     "SignInEventClaim": {
-        "doc": "OCR 卡片 LOGIN 标签定位未领的签到卡，点最左上可领的一天",
+        "doc": "OCR 卡片 LOGIN 标签定位未领的签到卡，点最左上可领的一天；ocrReplace 纠正两位数天数遮挡的误读",
         "algorithm": "OcrDetect",
         "text": ["LOGIN"],
+        "ocrReplace": [["^LOGI*N?$", "LOGIN"]],
         "isAscii": true,
         "fullMatch": true,
         "orderBy": "Horizontal",
