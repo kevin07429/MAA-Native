@@ -125,7 +125,7 @@ class DependencyDownloadTests(unittest.TestCase):
         }
 
         def run(command, **kwargs):
-            if "application/octet-stream" in command:
+            if any("application/octet-stream" in value for value in command):
                 self.assertEqual(command[-1], asset["url"])
                 kwargs["stdout"].write(self.archive)
                 return subprocess.CompletedProcess(command, 0, stderr=b"")

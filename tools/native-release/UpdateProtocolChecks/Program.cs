@@ -62,6 +62,8 @@ foreach (var (input, expected) in new[] { ("v6.21.1-native.6", "v6.21.1"), ("v6.
 var resolve = service.GetMethod("GetProgramAssetName", BindingFlags.Static | BindingFlags.NonPublic)!;
 var mirrorUris = service.GetMethod("GetMirrorAssetUris", BindingFlags.Static | BindingFlags.NonPublic)!;
 var apiMirrorUris = service.GetMethod("GetMirrorApiUris", BindingFlags.Static | BindingFlags.NonPublic)!;
+var assetUris = service.GetMethod("GetAssetDownloadUris", BindingFlags.Static | BindingFlags.NonPublic)!;
+var releaseUris = service.GetMethod("GetReleaseLookupUris", BindingFlags.Static | BindingFlags.NonPublic)!;
 var validate = service.GetMethod("ValidateProgramArchive", BindingFlags.Static | BindingFlags.NonPublic)!;
 var inspect = assembly.GetType("MaaWpfGui.Services.PendingUpdateApplier", true)!.GetMethod("InspectLocalUpdatePackage")!;
 const string asset = "MAA-Native-v6.20.1-native.3-program-win-x64.zip";
@@ -79,7 +81,11 @@ Check(Resolve(Release()) == asset, "native upgrade selects only its x64 program 
 var mirrors = (Uri[])mirrorUris.Invoke(null, [new Uri("https://github.com/kevin07429/MAA-Native/releases/download/v6.20.1-native.3/" + asset)])!;
 Check(mirrors.Length == 2 && mirrors[0].Host == "gh-proxy.com" && mirrors[1].Host == "ghfast.top", "native update has two domestic asset mirrors");
 var apiMirrors = (Uri[])apiMirrorUris.Invoke(null, [new Uri("https://api.github.com/repos/kevin07429/MAA-Native/releases/latest")])!;
-Check(apiMirrors.Length == 2 && apiMirrors.All(uri => uri.AbsolutePath.Contains("api.github.com/repos/kevin07429/MAA-Native/releases/latest", StringComparison.Ordinal)), "native update mirrors its public release lookup");
+Check(apiMirrors.Length == 1 && apiMirrors[0].Host == "gh-proxy.com", "native update has a domestic release lookup mirror");
+var orderedAssets = (Uri[])assetUris.Invoke(null, [new Uri("https://github.com/kevin07429/MAA-Native/releases/download/v6.20.1-native.3/" + asset)])!;
+Check(orderedAssets.Length == 3 && orderedAssets[0].Host == "gh-proxy.com" && orderedAssets[1].Host == "ghfast.top" && orderedAssets[2].Host == "github.com", "native assets use domestic mirrors before GitHub");
+var orderedReleases = (Uri[])releaseUris.Invoke(null, [new Uri("https://api.github.com/repos/kevin07429/MAA-Native/releases/latest")])!;
+Check(orderedReleases.Length == 2 && orderedReleases[0].Host == "gh-proxy.com" && orderedReleases[1].Host == "api.github.com", "native release lookup uses a domestic mirror before GitHub");
 try {
     mirrorUris.Invoke(null, [new Uri("https://example.com/file.zip")]);
     throw new Exception("An unrelated URL was accepted as a mirror source");

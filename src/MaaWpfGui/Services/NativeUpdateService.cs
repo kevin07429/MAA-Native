@@ -119,27 +119,30 @@ internal static class NativeUpdateService
         ];
     }
 
+    internal static Uri[] GetAssetDownloadUris(Uri uri)
+    {
+        return [.. GetMirrorAssetUris(uri), uri];
+    }
+
     private static async Task<string?> GetAssetTextAsync(Uri uri)
     {
-        string? result = await Instances.HttpService.GetStringAsync(uri).ConfigureAwait(false);
-        foreach (Uri mirror in GetMirrorAssetUris(uri))
+        foreach (Uri candidate in GetAssetDownloadUris(uri))
         {
-            result ??= await Instances.HttpService.GetStringAsync(mirror).ConfigureAwait(false);
+            string? result = await Instances.HttpService.GetStringAsync(candidate).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(result))
+            {
+                return result;
+            }
         }
 
-        return result;
+        return null;
     }
 
     private static async Task<bool> DownloadAssetAsync(Uri uri, string path)
     {
-        if (await Instances.HttpService.DownloadFileAsync(uri, path).ConfigureAwait(false))
+        foreach (Uri candidate in GetAssetDownloadUris(uri))
         {
-            return true;
-        }
-
-        foreach (Uri mirror in GetMirrorAssetUris(uri))
-        {
-            if (await Instances.HttpService.DownloadFileAsync(mirror, path).ConfigureAwait(false))
+            if (await Instances.HttpService.DownloadFileAsync(candidate, path).ConfigureAwait(false))
             {
                 return true;
             }
@@ -151,40 +154,29 @@ internal static class NativeUpdateService
     private static async Task<HttpResponseMessage> GetLatestReleaseResponseAsync()
     {
         Uri uri = new($"https://api.github.com/repos/{Repository}/releases/latest");
-        try
-        {
-            var response = await Instances.HttpService.GetAsync(uri).ConfigureAwait(false);
-            if (response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                return response;
-            }
-
-            response.Dispose();
-        }
-        catch (Exception exception)
-        {
-            _logger.Warning(exception, "Direct native release lookup failed; trying mirrors");
-        }
-
-        foreach (Uri mirror in GetMirrorApiUris(uri))
+        foreach (Uri candidate in GetReleaseLookupUris(uri))
         {
             try
             {
-                var response = await Instances.HttpService.GetAsync(mirror).ConfigureAwait(false);
+                var response = await Instances.HttpService.GetAsync(candidate).ConfigureAwait(false);
                 if (response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
                     return response;
                 }
 
+                _logger.Warning(
+                    "Native release lookup through {Host} returned {StatusCode}",
+                    candidate.Host,
+                    response.StatusCode);
                 response.Dispose();
             }
             catch (Exception exception)
             {
-                _logger.Warning(exception, "Native release lookup failed through {MirrorHost}", mirror.Host);
+                _logger.Warning(exception, "Native release lookup failed through {Host}", candidate.Host);
             }
         }
 
-        throw new HttpRequestException("Native release information is unavailable from GitHub and its mirrors");
+        throw new HttpRequestException("Native release information is unavailable from domestic mirrors and GitHub");
     }
 
     private static Uri[] GetMirrorApiUris(Uri uri)
@@ -196,10 +188,12 @@ internal static class NativeUpdateService
             throw new InvalidDataException("Unexpected native release API URL");
         }
 
-        return [
-            new Uri("https://gh-proxy.com/" + uri.AbsoluteUri),
-            new Uri("https://ghfast.top/" + uri.AbsoluteUri),
-        ];
+        return [new Uri("https://gh-proxy.com/" + uri.AbsoluteUri)];
+    }
+
+    internal static Uri[] GetReleaseLookupUris(Uri uri)
+    {
+        return [.. GetMirrorApiUris(uri), uri];
     }
 
     internal static async Task<CheckUpdateRetT> CheckAndDownloadAsync(bool allowSameVersion = false)

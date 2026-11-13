@@ -1,4 +1,4 @@
-"""Resolve the native fork's known update UI conflicts while preserving upstream changes."""
+"""Resolve the native fork's known update conflicts while preserving upstream changes."""
 
 from pathlib import Path
 import re
@@ -6,6 +6,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 ROOT = Path("src/MaaWpfGui")
+REPO_ROOT = Path(".")
 CONFLICT_MARKER = r"^(?:<{7}|={7}|>{7}|\|{7})(?:\s|$)"
 
 
@@ -44,7 +45,48 @@ def resolve(relative, chooser):
         path.write_text(text, encoding="utf-8")
 
 
+def resolve_battle_helper():
+    path = REPO_ROOT / "src/MaaCore/Task/BattleHelper.cpp"
+    if not path.exists():
+        return
+    text = path.read_text(encoding="utf-8-sig")
+    conflict_pattern = r"^<<<<<<<[^\n]*\n(.*?)^=======\n(.*?)^>>>>>>>[^\n]*(?:\n|$)"
+    native_pattern = re.compile(
+        r"^        cv::Vec3d temp \{ point\.x \+ \(has_multi_stages \? m_map_data\.view\[0\]\.x : 0\), -point\.y, Map::TileCalc2::rel_pos_z \};\n"
+        r"        auto screen_pt = Config\.get_options\(\)\.native_resolution\n"
+        r"                             \? adaptive::project_battle\(m_map_data, temp, true, cam_img\.cols, cam_img\.rows\)\n"
+        r"                             : Map::TileCalc2::world_to_screen\(m_map_data, temp, true\);\n$",
+        re.MULTILINE,
+    )
+    upstream_pattern = re.compile(
+        r"^        cv::Vec3d temp \{ point\.x \+ \(has_multi_phases \? m_map_data\.view\[0\]\.x : 0\), -point\.y, Map::TileCalc2::rel_pos_z \};\n"
+        r"        auto screen_pt = Map::TileCalc2::world_to_screen\(m_map_data, temp, true\);\n$",
+        re.MULTILINE,
+    )
+
+    def choose(native, upstream):
+        if not native_pattern.fullmatch(native) or not upstream_pattern.fullmatch(
+            upstream
+        ):
+            raise RuntimeError(
+                "Unrecognized BattleHelper conflict outside the adaptive projection change"
+            )
+        return native.replace("has_multi_stages", "has_multi_phases")
+
+    text, count = re.subn(
+        conflict_pattern,
+        lambda match: choose(match[1], match[2]),
+        text,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    validate(path, text)
+    if count:
+        path.write_text(text, encoding="utf-8")
+
+
 def main():
+    resolve_battle_helper()
+
     for path in (ROOT / "Res/Localizations").glob("*.xaml"):
         resolve(path.relative_to(ROOT), lambda native, upstream: upstream + native)
 

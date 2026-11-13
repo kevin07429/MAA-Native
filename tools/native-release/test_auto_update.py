@@ -54,7 +54,7 @@ class AutoUpdateTests(unittest.TestCase):
             "src/MaaCore/CMakeLists.txt": 'set(NATIVE_APP_VERSION "v6.21.0-native.5")\n',
             "src/MaaWpfGui/Services/NativeUpdateService.cs": auto.REPO,
             "src/MaaWpfGui/Services/DebugControlService.cs": "debug-control.json",
-            "src/MaaWpfGui/ViewModels/UI/RootViewModel.cs": "NativeCaptureService.EnsureStartedAsync(); DebugControlService.Start();",
+            "src/MaaWpfGui/ViewModels/UI/RootViewModel.cs": "NativeCaptureService.EnsureStartedAsync(); DebugControlService.Start(); _ = StartupIntegrityCheckAndUpdateAsync();",
             "src/MaaWpfGui/ViewModels/Dialogs/VersionUpdateDialogViewModel.cs": "return NativeUpdateService.CheckAndDownloadAsync();",
             "src/MaaWpfGui/ViewModels/UserControl/Settings/VersionUpdateSettingsUserControlModel.cs": "    public async Task ManualUpdateResource()\n    {\n        await ResourceUpdater.ResourceUpdateAndReloadAsync();\n    }\n\n    // UI ",
             "src/MaaWpfGui/Views/UserControl/Settings/VersionUpdateSettingsUserControl.xaml": "<UserControl />\n",
@@ -289,6 +289,32 @@ class AutoUpdateTests(unittest.TestCase):
             len(ET.fromstring(localization.read_text(encoding="utf-8"))), 2
         )
 
+    def test_battle_helper_conflict_preserves_adaptive_projection(self):
+        root = Path(self.temp.name)
+        helper = root / "src/MaaCore/Task/BattleHelper.cpp"
+        helper.parent.mkdir(parents=True)
+        helper.write_text(
+            "before\n"
+            "<<<<<<< HEAD\n"
+            "        cv::Vec3d temp { point.x + (has_multi_stages ? m_map_data.view[0].x : 0), -point.y, Map::TileCalc2::rel_pos_z };\n"
+            "        auto screen_pt = Config.get_options().native_resolution\n"
+            "                             ? adaptive::project_battle(m_map_data, temp, true, cam_img.cols, cam_img.rows)\n"
+            "                             : Map::TileCalc2::world_to_screen(m_map_data, temp, true);\n"
+            "=======\n"
+            "        cv::Vec3d temp { point.x + (has_multi_phases ? m_map_data.view[0].x : 0), -point.y, Map::TileCalc2::rel_pos_z };\n"
+            "        auto screen_pt = Map::TileCalc2::world_to_screen(m_map_data, temp, true);\n"
+            ">>>>>>> upstream/dev-v2\n"
+            "after\n",
+            encoding="utf-8",
+        )
+        with patch.object(resolver, "REPO_ROOT", root):
+            resolver.resolve_battle_helper()
+        result = helper.read_text(encoding="utf-8")
+        self.assertIn("has_multi_phases", result)
+        self.assertIn("adaptive::project_battle", result)
+        self.assertNotIn("has_multi_stages", result)
+        self.assertNotIn("<<<<<<<", result)
+
     def previous_resources_fixture(
         self, entry="resource/version.json", bad_digest=False
     ):
@@ -415,6 +441,15 @@ class AutoUpdateTests(unittest.TestCase):
         )
         self.git("commit", "-am", "removed native hook")
         with self.assertRaisesRegex(RuntimeError, "Background debug control"):
+            self.prepare()
+
+    def test_missing_startup_update_check_blocks_release(self):
+        self.seed()
+        Path("src/MaaWpfGui/ViewModels/UI/RootViewModel.cs").write_text(
+            "NativeCaptureService.EnsureStartedAsync(); DebugControlService.Start();"
+        )
+        self.git("commit", "-am", "removed startup update check")
+        with self.assertRaisesRegex(RuntimeError, "Automatic startup update check"):
             self.prepare()
 
     def test_failed_release_can_retry_the_same_version(self):

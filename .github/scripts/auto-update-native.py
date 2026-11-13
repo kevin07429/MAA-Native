@@ -80,6 +80,7 @@ def merge_upstream(head, target):
             "git", "diff", "--name-only", "--diff-filter=U"
         ).splitlines()
         resolvable = {
+            "src/MaaCore/Task/BattleHelper.cpp",
             "src/MaaWpfGui/Models/ResourceUpdater.cs",
             "src/MaaWpfGui/ViewModels/Dialogs/VersionUpdateDialogViewModel.cs",
             "src/MaaWpfGui/ViewModels/UserControl/Settings/VersionUpdateSettingsUserControlModel.cs",
@@ -166,6 +167,10 @@ def prepare():
         "src/MaaWpfGui/ViewModels/UI/RootViewModel.cs"
     ).read_text(encoding="utf-8-sig"):
         raise RuntimeError("Background debug control was disabled")
+    if "_ = StartupIntegrityCheckAndUpdateAsync();" not in Path(
+        "src/MaaWpfGui/ViewModels/UI/RootViewModel.cs"
+    ).read_text(encoding="utf-8-sig"):
+        raise RuntimeError("Automatic startup update check was disabled")
     about = Path(
         "src/MaaWpfGui/Views/UserControl/Settings/AboutUserControl.xaml"
     ).read_text(encoding="utf-8-sig")

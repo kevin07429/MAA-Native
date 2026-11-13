@@ -76,10 +76,7 @@ public class RootViewModel : Conductor<Screen>.Collection.OneActive
         _ = NativeCaptureService.EnsureStartedAsync(
             SettingsViewModel.ConnectSettings.AdbPath,
             SettingsViewModel.ConnectSettings.ConnectAddress);
-        if (SettingsViewModel.VersionUpdateSettings.StartupUpdateCheck)
-        {
-            _ = ResourceUpdater.ResourceUpdateAndReloadAsync();
-        }
+        _ = StartupIntegrityCheckAndUpdateAsync();
 
         // 主窗口已显示，此时弹窗不会导致 WPF 因无窗口而退出
         Task.Run(ConfigBrokenCheck);
