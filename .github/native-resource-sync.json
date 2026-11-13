@@ -1,18 +1,18 @@
 {
   "merge_mode": "resource_patch_with_program_commits_excluded",
-  "upstream_commit": "45976ebaf605c6cec471faff6013d5162f817523",
+  "upstream_commit": "cc26eff380e805c358a0d5b2db9b00b7bc8ce008",
   "previous_upstream_commit": "626a174b46f8eeea2b5fecc9e12706632f07d001",
   "updated_utc": "2026-11-01T17:58:49+00:00",
   "resource_version": {
     "activity": {
-      "name": "时间啊，向前！",
-      "time": 1793487600
+      "name": "卫戍协议:规程",
+      "time": 1794124800
     },
     "gacha": {
       "pool": "将雪投火",
       "time": 1793487600
     },
-    "last_updated": "2026-11-04 18:33:23.000"
+    "last_updated": "2026-11-08 15:51:20.000"
   },
   "resource_files": [
     "resource/global/YoStarEN/resource/tasks/RA/Reclamation3.json",
