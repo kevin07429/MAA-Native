@@ -16,13 +16,17 @@
 //     "relaunchArgs": ["--skip-startup-auto-run", ...]   // optional, forwarded to MAA.exe
 //   }
 
+// clang-format off
 #include <windows.h>
 #include <commctrl.h>
 #include <dwmapi.h>
 #include <shellapi.h>
+#include <tlhelp32.h>
+// clang-format on
 
-#include <cstdarg>
+#include <algorithm>
 #include <cassert>
+#include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -62,10 +66,7 @@ static std::wstring NormalizeRelativePath(const std::wstring& relativePath);
 static bool EqualsIgnoreCase(const std::wstring& left, const wchar_t* right);
 static bool IsDriveRootDirectory(const std::wstring& path);
 static bool IsRecycleAndReplaceDirectory(const std::wstring& relativePath);
-static bool TryResolvePathUnderRoot(
-    const std::wstring& rootPath,
-    const std::wstring& relativePath,
-    std::wstring& out);
+static bool TryResolvePathUnderRoot(const std::wstring& rootPath, const std::wstring& relativePath, std::wstring& out);
 
 static bool PathExistsW(const std::wstring& path);
 static bool IsDirectory(const std::wstring& path);
@@ -109,6 +110,7 @@ static bool ForceDeleteFile(const std::wstring& path);
 static bool ForceRemoveDirectoryRecursive(const std::wstring& dir);
 static bool InstallFileAtomic(const std::wstring& sourcePath, const std::wstring& targetPath);
 static void CleanupPendingDeleteFiles(const std::wstring& rootDir);
+static bool WaitForExecutableProcessesToExit(const std::wstring& executablePath, DWORD timeoutMs);
 
 struct UpdateProgressUi
 {
@@ -156,11 +158,15 @@ static constexpr wchar_t MUTEX_NAME_ARG[] = L"--mutex-name";
 static constexpr DWORD UPDATE_MUTEX_TIMEOUT_MS = 3000;
 // 等待 MAA 主程序退出：先静默等待 fast-wait 时限（不弹窗，避免与正在退出的 MAA 抢前台），
 // 超时后弹窗并进入倒计时；倒计时归零仍未退出则强制结束主程序，防止挂死的进程把更新无限期卡住
-static constexpr DWORD PARENT_EXIT_FAST_WAIT_MS = 15000;
-static constexpr DWORD PARENT_EXIT_COUNTDOWN_MS = 60000;
+static constexpr DWORD PARENT_EXIT_FAST_WAIT_MS = 15'000;
+static constexpr DWORD PARENT_EXIT_COUNTDOWN_MS = 60'000;
 #define PENDING_DELETE_SUFFIX L".pendingdelete"
 static constexpr int FILE_OP_MAX_RETRIES = 5;
 static constexpr DWORD FILE_OP_INITIAL_DELAY_MS = 200;
+static constexpr int INSTALL_FILE_MAX_RETRIES = 20;
+static constexpr DWORD INSTALL_FILE_INITIAL_DELAY_MS = 300;
+static constexpr DWORD FILE_OP_MAX_DELAY_MS = 2000;
+static constexpr DWORD EXECUTABLE_EXIT_TIMEOUT_MS = 30'000;
 
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
@@ -168,15 +174,8 @@ static constexpr DWORD FILE_OP_INITIAL_DELAY_MS = 200;
 
 static bool TryConvertWideToUtf8(const std::wstring& wide, std::string& utf8)
 {
-    int utf8Len = WideCharToMultiByte(
-        CP_UTF8,
-        0,
-        wide.c_str(),
-        static_cast<int>(wide.size()),
-        nullptr,
-        0,
-        nullptr,
-        nullptr);
+    int utf8Len =
+        WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), static_cast<int>(wide.size()), nullptr, 0, nullptr, nullptr);
     if (utf8Len <= 0) {
         utf8.clear();
         return false;
@@ -184,23 +183,21 @@ static bool TryConvertWideToUtf8(const std::wstring& wide, std::string& utf8)
 
     utf8.assign(static_cast<size_t>(utf8Len), '\0');
     return WideCharToMultiByte(
-        CP_UTF8,
-        0,
-        wide.c_str(),
-        static_cast<int>(wide.size()),
-        utf8.data(),
-        utf8Len,
-        nullptr,
-        nullptr) == utf8Len;
+               CP_UTF8,
+               0,
+               wide.c_str(),
+               static_cast<int>(wide.size()),
+               utf8.data(),
+               utf8Len,
+               nullptr,
+               nullptr) == utf8Len;
 }
 
 static HANDLE GetConsoleStreamHandle(FILE* stream)
 {
-    DWORD stdHandle = stream == stderr
-        ? STD_ERROR_HANDLE
-        : stream == stdout
-            ? STD_OUTPUT_HANDLE
-            : static_cast<DWORD>(-1);
+    DWORD stdHandle = stream == stderr   ? STD_ERROR_HANDLE
+                      : stream == stdout ? STD_OUTPUT_HANDLE
+                                         : static_cast<DWORD>(-1);
     if (stdHandle == static_cast<DWORD>(-1)) {
         return nullptr;
     }
@@ -234,7 +231,8 @@ static void RefreshProgressUiTheme()
         g_progressUiTheme.secondaryTextColor = RGB(200, 200, 200);
         g_progressUiTheme.progressTrackColor = RGB(58, 58, 58);
         g_progressUiTheme.progressBarColor = RGB(76, 194, 255);
-    } else {
+    }
+    else {
         g_progressUiTheme.backgroundColor = RGB(255, 255, 255);
         g_progressUiTheme.primaryTextColor = RGB(32, 32, 32);
         g_progressUiTheme.secondaryTextColor = RGB(96, 96, 96);
@@ -253,27 +251,15 @@ static void RefreshProgressUiTheme()
     }
 
     BOOL useDarkMode = g_progressUiTheme.isDarkMode ? TRUE : FALSE;
-    DwmSetWindowAttribute(
-        g_progressUi.window,
-        DWMWA_USE_IMMERSIVE_DARK_MODE,
-        &useDarkMode,
-        sizeof(useDarkMode));
-    DwmSetWindowAttribute(
-        g_progressUi.window,
-        LEGACY_DWMWA_USE_IMMERSIVE_DARK_MODE,
-        &useDarkMode,
-        sizeof(useDarkMode));
+    DwmSetWindowAttribute(g_progressUi.window, DWMWA_USE_IMMERSIVE_DARK_MODE, &useDarkMode, sizeof(useDarkMode));
+    DwmSetWindowAttribute(g_progressUi.window, LEGACY_DWMWA_USE_IMMERSIVE_DARK_MODE, &useDarkMode, sizeof(useDarkMode));
 
     if (g_progressUi.progressBar != nullptr) {
         SendMessageW(g_progressUi.progressBar, PBM_SETBKCOLOR, 0, g_progressUiTheme.progressTrackColor);
         SendMessageW(g_progressUi.progressBar, PBM_SETBARCOLOR, 0, g_progressUiTheme.progressBarColor);
     }
 
-    RedrawWindow(
-        g_progressUi.window,
-        nullptr,
-        nullptr,
-        RDW_ERASE | RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+    RedrawWindow(g_progressUi.window, nullptr, nullptr, RDW_ERASE | RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW);
 }
 
 static LRESULT CALLBACK UpdateProgressWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -290,24 +276,21 @@ static LRESULT CALLBACK UpdateProgressWindowProc(HWND hwnd, UINT message, WPARAM
         FillRect(
             dc,
             &clientRect,
-            g_progressUiTheme.backgroundBrush != nullptr
-                ? g_progressUiTheme.backgroundBrush
-                : reinterpret_cast<HBRUSH>(GetStockObject(WHITE_BRUSH)));
+            g_progressUiTheme.backgroundBrush != nullptr ? g_progressUiTheme.backgroundBrush
+                                                         : reinterpret_cast<HBRUSH>(GetStockObject(WHITE_BRUSH)));
         return 1;
     }
     case WM_CTLCOLORSTATIC: {
         HDC dc = reinterpret_cast<HDC>(wParam);
         HWND control = reinterpret_cast<HWND>(lParam);
-        COLORREF textColor = control == g_progressUi.detailLabel
-            ? g_progressUiTheme.secondaryTextColor
-            : g_progressUiTheme.primaryTextColor;
+        COLORREF textColor = control == g_progressUi.detailLabel ? g_progressUiTheme.secondaryTextColor
+                                                                 : g_progressUiTheme.primaryTextColor;
         SetTextColor(dc, textColor);
         SetBkColor(dc, g_progressUiTheme.backgroundColor);
         SetBkMode(dc, TRANSPARENT);
         return reinterpret_cast<INT_PTR>(
-            g_progressUiTheme.backgroundBrush != nullptr
-                ? g_progressUiTheme.backgroundBrush
-                : reinterpret_cast<HBRUSH>(GetStockObject(WHITE_BRUSH)));
+            g_progressUiTheme.backgroundBrush != nullptr ? g_progressUiTheme.backgroundBrush
+                                                         : reinterpret_cast<HBRUSH>(GetStockObject(WHITE_BRUSH)));
     }
     case WM_CLOSE:
         return 0;
@@ -506,8 +489,8 @@ static void DestroyProgressUi()
 
 static std::wstring BuildProgressCountText(int processedFileCount, int totalFileCount)
 {
-        return L"已处理文件 " + std::to_wstring(processedFileCount) + L"/" + std::to_wstring(totalFileCount) +
-            L" | Files processed " + std::to_wstring(processedFileCount) + L"/" + std::to_wstring(totalFileCount);
+    return L"已处理文件 " + std::to_wstring(processedFileCount) + L"/" + std::to_wstring(totalFileCount) +
+           L" | Files processed " + std::to_wstring(processedFileCount) + L"/" + std::to_wstring(totalFileCount);
 }
 
 static void RefreshProgressUiCountText()
@@ -594,11 +577,7 @@ static void ShowProgressUiFailure(const std::wstring& failureReason)
     }
 
     SetProgressUiStatus(L"更新失败 | Update failed", failureReason);
-    MessageBoxW(
-        g_progressUi.window,
-        failureReason.c_str(),
-        L"MAA 更新失败 | MAA Update Failed",
-        MB_OK | MB_ICONERROR);
+    MessageBoxW(g_progressUi.window, failureReason.c_str(), L"MAA 更新失败 | MAA Update Failed", MB_OK | MB_ICONERROR);
 }
 
 static void WriteLog(const wchar_t* message)
@@ -607,10 +586,18 @@ static void WriteLog(const wchar_t* message)
     GetLocalTime(&st);
 
     wchar_t buf[64];
-    _snwprintf_s(buf, _countof(buf), _TRUNCATE,
-                 L"[%04d-%02d-%02d %02d:%02d:%02d.%03d] ",
-                 st.wYear, st.wMonth, st.wDay,
-                 st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+    _snwprintf_s(
+        buf,
+        _countof(buf),
+        _TRUNCATE,
+        L"[%04d-%02d-%02d %02d:%02d:%02d.%03d] ",
+        st.wYear,
+        st.wMonth,
+        st.wDay,
+        st.wHour,
+        st.wMinute,
+        st.wSecond,
+        st.wMilliseconds);
 
     std::wstring timestampedLine = buf;
     timestampedLine += message;
@@ -619,7 +606,9 @@ static void WriteLog(const wchar_t* message)
         WriteConsoleText(stdout, timestampedLine, true);
     }
 
-    if (g_logFile.empty()) return;
+    if (g_logFile.empty()) {
+        return;
+    }
 
     std::wstring line = timestampedLine;
     line += L"\r\n";
@@ -633,9 +622,15 @@ static void WriteLog(const wchar_t* message)
 
     HANDLE hFile = CreateFileW(
         g_logFile.c_str(),
-        FILE_APPEND_DATA, FILE_SHARE_READ,
-        nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (hFile == INVALID_HANDLE_VALUE) return;
+        FILE_APPEND_DATA,
+        FILE_SHARE_READ,
+        nullptr,
+        OPEN_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        return;
+    }
 
     // Write UTF-8
     std::string utf8;
@@ -676,12 +671,7 @@ static void WriteConsoleText(FILE* stream, const std::wstring& text, bool append
     DWORD consoleMode = 0;
     if (consoleHandle != nullptr && GetConsoleMode(consoleHandle, &consoleMode)) {
         DWORD written = 0;
-        WriteConsoleW(
-            consoleHandle,
-            outputText.c_str(),
-            static_cast<DWORD>(outputText.size()),
-            &written,
-            nullptr);
+        WriteConsoleW(consoleHandle, outputText.c_str(), static_cast<DWORD>(outputText.size()), &written, nullptr);
         return;
     }
 
@@ -742,8 +732,9 @@ static bool HasArgument(int argc, wchar_t* argv[], const wchar_t* argument)
 
 static std::wstring EnsureTrailingSeparator(const std::wstring& path)
 {
-    if (!path.empty() && path.back() != L'\\')
+    if (!path.empty() && path.back() != L'\\') {
         return path + L'\\';
+    }
     return path;
 }
 
@@ -756,7 +747,8 @@ static std::wstring NormalizeRelativePath(const std::wstring& relativePath)
         }
     }
 
-    while (!normalized.empty() && (normalized.back() == L'\\' || normalized.back() == L' ' || normalized.back() == L'\t')) {
+    while (!normalized.empty() &&
+           (normalized.back() == L'\\' || normalized.back() == L' ' || normalized.back() == L'\t')) {
         normalized.pop_back();
     }
 
@@ -802,45 +794,65 @@ static bool IsRecycleAndReplaceDirectory(const std::wstring& relativePath)
 
 // Resolves `relativePath` under `rootPath`, writes result to `out`.
 // Returns false if the path is rooted, empty, or escapes the root.
-static bool TryResolvePathUnderRoot(
-    const std::wstring& rootPath,
-    const std::wstring& relativePath,
-    std::wstring& out)
+static bool TryResolvePathUnderRoot(const std::wstring& rootPath, const std::wstring& relativePath, std::wstring& out)
 {
     out.clear();
 
     // Reject empty or whitespace
-    if (relativePath.empty()) return false;
+    if (relativePath.empty()) {
+        return false;
+    }
     bool allSpace = true;
-    for (wchar_t c : relativePath)
-        if (c != L' ' && c != L'\t') { allSpace = false; break; }
-    if (allSpace) return false;
+    for (wchar_t c : relativePath) {
+        if (c != L' ' && c != L'\t') {
+            allSpace = false;
+            break;
+        }
+    }
+    if (allSpace) {
+        return false;
+    }
 
     // Normalise slashes
     std::wstring rel = relativePath;
-    for (wchar_t& c : rel)
-        if (c == L'/') c = L'\\';
+    for (wchar_t& c : rel) {
+        if (c == L'/') {
+            c = L'\\';
+        }
+    }
 
     // Reject absolute paths
-    if (rel.size() >= 2 && rel[1] == L':') return false;
-    if (!rel.empty() && rel[0] == L'\\') return false;
+    if (rel.size() >= 2 && rel[1] == L':') {
+        return false;
+    }
+    if (!rel.empty() && rel[0] == L'\\') {
+        return false;
+    }
 
     // Build candidate and canonicalise
     std::wstring combined = rootPath + L'\\' + rel;
     wchar_t full[MAX_PATH * 4];
     DWORD len = GetFullPathNameW(combined.c_str(), _countof(full), full, nullptr);
-    if (len == 0 || len >= _countof(full)) return false;
+    if (len == 0 || len >= _countof(full)) {
+        return false;
+    }
 
     std::wstring candidate = full;
 
     // Root must be canonical too
     DWORD rootLen = GetFullPathNameW(rootPath.c_str(), _countof(full), full, nullptr);
-    if (rootLen == 0 || rootLen >= _countof(full)) return false;
+    if (rootLen == 0 || rootLen >= _countof(full)) {
+        return false;
+    }
     std::wstring normalRoot = EnsureTrailingSeparator(std::wstring(full));
 
     // Case-insensitive prefix check
-    if (candidate.size() < normalRoot.size()) return false;
-    if (_wcsnicmp(candidate.c_str(), normalRoot.c_str(), normalRoot.size()) != 0) return false;
+    if (candidate.size() < normalRoot.size()) {
+        return false;
+    }
+    if (_wcsnicmp(candidate.c_str(), normalRoot.c_str(), normalRoot.size()) != 0) {
+        return false;
+    }
 
     out = candidate;
     return true;
@@ -936,9 +948,13 @@ static bool CopyPathEntry(const std::wstring& sourcePath, const std::wstring& de
 static void EnsureParentDirectory(const std::wstring& path)
 {
     size_t sep = path.rfind(L'\\');
-    if (sep == std::wstring::npos) return;
+    if (sep == std::wstring::npos) {
+        return;
+    }
     std::wstring parent = path.substr(0, sep);
-    if (parent.empty()) return;
+    if (parent.empty()) {
+        return;
+    }
 
     // Recursively create
     EnsureParentDirectory(parent);
@@ -950,17 +966,26 @@ static std::wstring CreateArchivedPath(const std::wstring& base)
     SYSTEMTIME st {};
     GetLocalTime(&st);
     wchar_t ts[32];
-    _snwprintf_s(ts, _countof(ts), _TRUNCATE,
-                 L".%04d%02d%02d%02d%02d%02d.",
-                 st.wYear, st.wMonth, st.wDay,
-                 st.wHour, st.wMinute, st.wSecond);
+    _snwprintf_s(
+        ts,
+        _countof(ts),
+        _TRUNCATE,
+        L".%04d%02d%02d%02d%02d%02d.",
+        st.wYear,
+        st.wMonth,
+        st.wDay,
+        st.wHour,
+        st.wMinute,
+        st.wSecond);
 
     int index = 0;
     while (true) {
         wchar_t idx[16];
         _itow_s(index, idx, _countof(idx), 10);
         std::wstring candidate = base + ts + idx;
-        if (!PathExistsW(candidate)) return candidate;
+        if (!PathExistsW(candidate)) {
+            return candidate;
+        }
         index++;
     }
 }
@@ -972,7 +997,9 @@ static bool MovePathEntry(const std::wstring& src, const std::wstring& dst)
     EnsureParentDirectory(dst);
 
     DWORD attr = GetFileAttributesW(src.c_str());
-    if (attr == INVALID_FILE_ATTRIBUTES) return false;
+    if (attr == INVALID_FILE_ATTRIBUTES) {
+        return false;
+    }
 
     if (attr & FILE_ATTRIBUTE_DIRECTORY) {
         auto moveOp = [&]() -> bool {
@@ -1031,7 +1058,9 @@ static bool MovePathEntry(const std::wstring& src, const std::wstring& dst)
 static void PrepareBackupDestination(const std::wstring& backupPath)
 {
     EnsureParentDirectory(backupPath);
-    if (!PathExistsW(backupPath)) return;
+    if (!PathExistsW(backupPath)) {
+        return;
+    }
 
     std::wstring archived = CreateArchivedPath(backupPath);
     MovePathEntry(backupPath, archived);
@@ -1118,11 +1147,10 @@ static bool WriteUtf8File(const std::wstring& path, const char* content)
 static bool WriteUtf8File(const std::wstring& path, const std::string& content)
 {
     EnsureParentDirectory(path);
-    HANDLE hFile = CreateFileW(
-        path.c_str(),
-        GENERIC_WRITE, 0,
-        nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (hFile == INVALID_HANDLE_VALUE) return false;
+    HANDLE hFile = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        return false;
+    }
 
     DWORD written = 0;
     DWORD len = static_cast<DWORD>(content.size());
@@ -1148,8 +1176,12 @@ static bool TryReadUtf8File(const std::wstring& path, std::string& content, std:
 
     HANDLE hFile = CreateFileW(
         path.c_str(),
-        GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr);
     if (hFile == INVALID_HANDLE_VALUE) {
         failureReason = BuildFileIoFailureReason(L"Failed to open file", path, GetLastError());
         return false;
@@ -1181,9 +1213,13 @@ static bool TryReadUtf8File(const std::wstring& path, std::string& content, std:
 // Handles basic \uXXXX, \n, \r, \t, \\, \/
 static std::wstring Utf8ToWide(const std::string& s)
 {
-    if (s.empty()) return {};
+    if (s.empty()) {
+        return {};
+    }
     int len = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, nullptr, 0);
-    if (len <= 1) return {};
+    if (len <= 1) {
+        return {};
+    }
     std::wstring out(len - 1, L'\0');
     MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, out.data(), len);
     return out;
@@ -1196,16 +1232,30 @@ static std::string ParseJsonString(const std::string& json, size_t& pos)
     std::string result;
     while (pos < json.size()) {
         char c = json[pos++];
-        if (c == '"') break;
+        if (c == '"') {
+            break;
+        }
         if (c == '\\' && pos < json.size()) {
             char esc = json[pos++];
             switch (esc) {
-            case '"':  result += '"';  break;
-            case '\\': result += '\\'; break;
-            case '/':  result += '/';  break;
-            case 'n':  result += '\n'; break;
-            case 'r':  result += '\r'; break;
-            case 't':  result += '\t'; break;
+            case '"':
+                result += '"';
+                break;
+            case '\\':
+                result += '\\';
+                break;
+            case '/':
+                result += '/';
+                break;
+            case 'n':
+                result += '\n';
+                break;
+            case 'r':
+                result += '\r';
+                break;
+            case 't':
+                result += '\t';
+                break;
             case 'u': {
                 if (pos + 4 <= json.size()) {
                     char hex[5] = {};
@@ -1215,10 +1265,12 @@ static std::string ParseJsonString(const std::string& json, size_t& pos)
                     // Encode code point as UTF-8
                     if (cp < 0x80) {
                         result += static_cast<char>(cp);
-                    } else if (cp < 0x800) {
+                    }
+                    else if (cp < 0x800) {
                         result += static_cast<char>(0xC0 | (cp >> 6));
                         result += static_cast<char>(0x80 | (cp & 0x3F));
-                    } else {
+                    }
+                    else {
                         result += static_cast<char>(0xE0 | (cp >> 12));
                         result += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
                         result += static_cast<char>(0x80 | (cp & 0x3F));
@@ -1226,9 +1278,12 @@ static std::string ParseJsonString(const std::string& json, size_t& pos)
                 }
                 break;
             }
-            default: result += esc; break;
+            default:
+                result += esc;
+                break;
             }
-        } else {
+        }
+        else {
             result += c;
         }
     }
@@ -1237,9 +1292,7 @@ static std::string ParseJsonString(const std::string& json, size_t& pos)
 
 static size_t SkipJsonWhitespace(const std::string& json, size_t pos)
 {
-    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' ||
-                                 json[pos] == '\r' || json[pos] == '\n'))
-    {
+    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\r' || json[pos] == '\n')) {
         ++pos;
     }
     return pos;
@@ -1249,7 +1302,9 @@ static size_t SkipJsonWhitespace(const std::string& json, size_t pos)
 static size_t SkipJsonValue(const std::string& json, size_t pos)
 {
     pos = SkipJsonWhitespace(json, pos);
-    if (pos >= json.size()) return pos;
+    if (pos >= json.size()) {
+        return pos;
+    }
 
     char c = json[pos];
     if (c == '"') {
@@ -1270,9 +1325,11 @@ static size_t SkipJsonValue(const std::string& json, size_t pos)
             if (inString) {
                 if (escaped) {
                     escaped = false;
-                } else if (ch == '\\') {
+                }
+                else if (ch == '\\') {
                     escaped = true;
-                } else if (ch == '"') {
+                }
+                else if (ch == '"') {
                     inString = false;
                 }
                 continue;
@@ -1285,7 +1342,8 @@ static size_t SkipJsonValue(const std::string& json, size_t pos)
 
             if (ch == open) {
                 ++depth;
-            } else if (ch == close) {
+            }
+            else if (ch == close) {
                 --depth;
                 if (depth == 0) {
                     ++pos;
@@ -1312,12 +1370,16 @@ static size_t SkipJsonValue(const std::string& json, size_t pos)
 static size_t FindTopLevelJsonValueStartByKey(const std::string& json, const char* key)
 {
     size_t pos = SkipJsonWhitespace(json, 0);
-    if (pos >= json.size() || json[pos] != '{') return std::string::npos;
+    if (pos >= json.size() || json[pos] != '{') {
+        return std::string::npos;
+    }
     ++pos;
 
     while (pos < json.size()) {
         pos = SkipJsonWhitespace(json, pos);
-        if (pos >= json.size()) return std::string::npos;
+        if (pos >= json.size()) {
+            return std::string::npos;
+        }
 
         if (json[pos] == ',') {
             ++pos;
@@ -1343,7 +1405,9 @@ static size_t FindTopLevelJsonValueStartByKey(const std::string& json, const cha
 
         ++pos;
         pos = SkipJsonWhitespace(json, pos);
-        if (pos >= json.size()) return std::string::npos;
+        if (pos >= json.size()) {
+            return std::string::npos;
+        }
 
         if (currentKey == key) {
             return pos;
@@ -1356,33 +1420,40 @@ static size_t FindTopLevelJsonValueStartByKey(const std::string& json, const cha
 }
 
 // Find a JSON array by key name and return its string elements.
-static std::vector<std::wstring> ParseJsonStringArray(
-    const std::string& json,
-    const char* key)
+static std::vector<std::wstring> ParseJsonStringArray(const std::string& json, const char* key)
 {
     std::vector<std::wstring> result;
 
     size_t pos = FindTopLevelJsonValueStartByKey(json, key);
-    if (pos == std::string::npos) return result;
+    if (pos == std::string::npos) {
+        return result;
+    }
 
-    if (pos >= json.size() || json[pos] != '[') return result;
+    if (pos >= json.size() || json[pos] != '[') {
+        return result;
+    }
     pos++; // consume '['
 
     // Parse array elements
     while (pos < json.size()) {
         // Skip whitespace
-        while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' ||
-                                      json[pos] == '\r' || json[pos] == '\n' ||
-                                      json[pos] == ','))
+        while (pos < json.size() &&
+               (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\r' || json[pos] == '\n' || json[pos] == ',')) {
             pos++;
+        }
 
-        if (pos >= json.size()) break;
-        if (json[pos] == ']') break;
+        if (pos >= json.size()) {
+            break;
+        }
+        if (json[pos] == ']') {
+            break;
+        }
         if (json[pos] == '"') {
             pos++; // consume opening quote
             std::string val = ParseJsonString(json, pos);
             result.push_back(Utf8ToWide(val));
-        } else {
+        }
+        else {
             pos++;
         }
     }
@@ -1393,9 +1464,13 @@ static std::vector<std::wstring> ParseJsonStringArray(
 static std::wstring ParseJsonStringProperty(const std::string& json, const char* key)
 {
     size_t pos = FindTopLevelJsonValueStartByKey(json, key);
-    if (pos == std::string::npos) return {};
+    if (pos == std::string::npos) {
+        return {};
+    }
 
-    if (pos >= json.size() || json[pos] != '"') return {};
+    if (pos >= json.size() || json[pos] != '"') {
+        return {};
+    }
 
     pos++;
     return Utf8ToWide(ParseJsonString(json, pos));
@@ -1446,9 +1521,7 @@ static bool LoadPendingUpdatePlan(
 }
 
 // Build a CreateProcess command line: "exe" [quoted args...]
-static std::wstring BuildRelaunchCommandLine(
-    const std::wstring& executable,
-    const std::vector<std::wstring>& args)
+static std::wstring BuildRelaunchCommandLine(const std::wstring& executable, const std::vector<std::wstring>& args)
 {
     auto needsQuotes = [](const std::wstring& value) {
         return value.find_first_of(L" \t\"") != std::wstring::npos;
@@ -1463,7 +1536,8 @@ static std::wstring BuildRelaunchCommandLine(
         for (wchar_t ch : value) {
             if (ch == L'"') {
                 dest += L"\\\"";
-            } else {
+            }
+            else {
                 dest.push_back(ch);
             }
         }
@@ -1514,9 +1588,15 @@ static int RunPlanParserTest(const std::wstring& initialPlanFile)
     }
 
     WriteConsoleText(stdout, L"文件读取成功: " + planFile + L" | Plan file loaded successfully: " + planFile, true);
-    WriteConsoleText(stdout, L"原始字节数: " + std::to_wstring(rawJson.size()) + L" | Raw byte count: " + std::to_wstring(rawJson.size()), true);
-    WriteConsoleText(stdout, L"包类型: " + (plan.packageType.empty() ? std::wstring(L"<空>") : plan.packageType) +
-        L" | Package type: " + (plan.packageType.empty() ? std::wstring(L"<empty>") : plan.packageType), true);
+    WriteConsoleText(
+        stdout,
+        L"原始字节数: " + std::to_wstring(rawJson.size()) + L" | Raw byte count: " + std::to_wstring(rawJson.size()),
+        true);
+    WriteConsoleText(
+        stdout,
+        L"包类型: " + (plan.packageType.empty() ? std::wstring(L"<空>") : plan.packageType) + L" | Package type: " +
+            (plan.packageType.empty() ? std::wstring(L"<empty>") : plan.packageType),
+        true);
     PrintPlanEntries(L"待删除文件列表 | Files to remove", plan.removeList);
     PrintPlanEntries(L"待安装文件列表 | Files to install", plan.moveList);
     PrintPlanEntries(L"重启参数 | Relaunch args", plan.relaunchArgs);
@@ -1552,8 +1632,11 @@ static HANDLE AcquireUpdateMutex(const std::wstring& mutexName)
     }
 
     if (waitResult == WAIT_TIMEOUT) {
-        WriteLog((L"Mutex acquisition timed out after " + std::to_wstring(UPDATE_MUTEX_TIMEOUT_MS) + L"ms: " + mutexName).c_str());
-    } else {
+        WriteLog(
+            (L"Mutex acquisition timed out after " + std::to_wstring(UPDATE_MUTEX_TIMEOUT_MS) + L"ms: " + mutexName)
+                .c_str());
+    }
+    else {
         WriteLog((L"WaitForSingleObject failed, error=" + std::to_wstring(GetLastError())).c_str());
     }
 
@@ -1586,16 +1669,19 @@ static bool RetryFileOp(const std::function<bool()>& op, int maxAttempts, DWORD 
         }
 
         DWORD error = GetLastError();
-        if (error != ERROR_SHARING_VIOLATION && error != ERROR_LOCK_VIOLATION &&
-            error != ERROR_ACCESS_DENIED) {
+        if (error != ERROR_SHARING_VIOLATION && error != ERROR_LOCK_VIOLATION && error != ERROR_ACCESS_DENIED) {
             // Not a transient locking error — no point retrying.
             return false;
         }
 
         if (attempt < maxAttempts) {
-            DWORD delay = initialDelayMs * static_cast<DWORD>(1 << (attempt - 1));
-            WriteLogF(L"RetryFileOp: attempt %d/%d failed (error=%u), retrying in %u ms",
-                      attempt, maxAttempts, error, delay);
+            DWORD delay = std::min(initialDelayMs * static_cast<DWORD>(1 << (attempt - 1)), FILE_OP_MAX_DELAY_MS);
+            WriteLogF(
+                L"RetryFileOp: attempt %d/%d failed (error=%u), retrying in %u ms",
+                attempt,
+                maxAttempts,
+                error,
+                delay);
             Sleep(delay);
         }
     }
@@ -1613,8 +1699,13 @@ static std::wstring RenameLockedFile(const std::wstring& path)
     DWORD tick = GetTickCount();
     LONG counter = InterlockedIncrement(&s_renameCounter);
     wchar_t suffix[64];
-    _snwprintf_s(suffix, _countof(suffix), _TRUNCATE,
-                 L".%08x%04x" PENDING_DELETE_SUFFIX, tick, static_cast<WORD>(counter & 0xFFFF));
+    _snwprintf_s(
+        suffix,
+        _countof(suffix),
+        _TRUNCATE,
+        L".%08x%04x" PENDING_DELETE_SUFFIX,
+        tick,
+        static_cast<WORD>(counter & 0xFFFF));
 
     std::wstring newPath = path + suffix;
 
@@ -1661,11 +1752,11 @@ static bool ForceDeleteFile(const std::wstring& path)
     std::wstring renamed = RenameLockedFile(path);
     if (!renamed.empty()) {
         // The rename succeeded; now try to delete the renamed file
-        RetryFileOp([&]() -> bool { return DeleteFileW(renamed.c_str()) != FALSE; },
-                    3, 500);
+        RetryFileOp([&]() -> bool { return DeleteFileW(renamed.c_str()) != FALSE; }, 3, 500);
         if (PathExistsW(renamed)) {
-            WriteLogF(L"Renamed file could not be deleted immediately (will remain as .pendingdelete): %ls",
-                      renamed.c_str());
+            WriteLogF(
+                L"Renamed file could not be deleted immediately (will remain as .pendingdelete): %ls",
+                renamed.c_str());
         }
         // Even if we couldn't delete the renamed file, the original path is now free.
         WriteLogF(L"File vacated via rename: %ls -> %ls", path.c_str(), renamed.c_str());
@@ -1690,12 +1781,14 @@ static bool ForceRemoveDirectoryRecursive(const std::wstring& dir)
     HANDLE hFind = FindFirstFileW(pattern.c_str(), &fd);
     if (hFind != INVALID_HANDLE_VALUE) {
         do {
-            if (wcscmp(fd.cFileName, L".") == 0 || wcscmp(fd.cFileName, L"..") == 0)
+            if (wcscmp(fd.cFileName, L".") == 0 || wcscmp(fd.cFileName, L"..") == 0) {
                 continue;
+            }
             std::wstring child = dir + L"\\" + fd.cFileName;
             if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
                 ForceRemoveDirectoryRecursive(child);
-            } else {
+            }
+            else {
                 ForceDeleteFile(child);
             }
         } while (FindNextFileW(hFind, &fd));
@@ -1708,8 +1801,7 @@ static bool ForceRemoveDirectoryRecursive(const std::wstring& dir)
 // Uses ReplaceFileW which handles locked target files better than
 // a separate copy-then-delete cycle.
 // If ReplaceFileW fails, falls back to copy-then-move with retry.
-static bool InstallFileAtomic(const std::wstring& sourcePath,
-                               const std::wstring& targetPath)
+static bool InstallFileAtomic(const std::wstring& sourcePath, const std::wstring& targetPath)
 {
     EnsureParentDirectory(targetPath);
 
@@ -1729,9 +1821,8 @@ static bool InstallFileAtomic(const std::wstring& sourcePath,
             return CopyFileW(sourcePath.c_str(), tempPath.c_str(), FALSE) != FALSE;
         };
 
-        if (!RetryFileOp(copyOp, FILE_OP_MAX_RETRIES, FILE_OP_INITIAL_DELAY_MS)) {
-            WriteLogF(L"InstallFileAtomic: failed to copy to temp: %ls (error=%u)",
-                      tempPath.c_str(), GetLastError());
+        if (!RetryFileOp(copyOp, INSTALL_FILE_MAX_RETRIES, INSTALL_FILE_INITIAL_DELAY_MS)) {
+            WriteLogF(L"InstallFileAtomic: failed to copy to temp: %ls (error=%u)", tempPath.c_str(), GetLastError());
             // Clean up the temp file if it exists
             DeleteFileW(tempPath.c_str());
             return false;
@@ -1742,11 +1833,13 @@ static bool InstallFileAtomic(const std::wstring& sourcePath,
     {
         auto replaceOp = [&]() -> bool {
             // ReplaceFileW(replaced, replacement, backup, flags, exclude, reserved)
-            return ReplaceFileW(targetPath.c_str(),
-                                tempPath.c_str(),
-                                nullptr, // no additional backup needed
-                                REPLACEFILE_IGNORE_MERGE_ERRORS | REPLACEFILE_WRITE_THROUGH,
-                                nullptr, nullptr) != FALSE;
+            return ReplaceFileW(
+                       targetPath.c_str(),
+                       tempPath.c_str(),
+                       nullptr, // no additional backup needed
+                       REPLACEFILE_IGNORE_MERGE_ERRORS | REPLACEFILE_WRITE_THROUGH,
+                       nullptr,
+                       nullptr) != FALSE;
         };
 
         if (RetryFileOp(replaceOp, 3, 500)) {
@@ -1756,8 +1849,7 @@ static bool InstallFileAtomic(const std::wstring& sourcePath,
     }
 
     // --- ReplaceFileW failed; fall back to copy-then-rename ---
-    WriteLogF(L"InstallFileAtomic: ReplaceFileW failed, falling back to MoveFileEx for: %ls",
-              targetPath.c_str());
+    WriteLogF(L"InstallFileAtomic: ReplaceFileW failed, falling back to MoveFileEx for: %ls", targetPath.c_str());
 
     // If the target exists and is locked, try to rename it out of the way
     if (PathExistsW(targetPath)) {
@@ -1776,7 +1868,7 @@ static bool InstallFileAtomic(const std::wstring& sourcePath,
         return MoveFileExW(tempPath.c_str(), targetPath.c_str(), MOVEFILE_REPLACE_EXISTING) != FALSE;
     };
 
-    if (RetryFileOp(moveOp, FILE_OP_MAX_RETRIES, FILE_OP_INITIAL_DELAY_MS)) {
+    if (RetryFileOp(moveOp, INSTALL_FILE_MAX_RETRIES, INSTALL_FILE_INITIAL_DELAY_MS)) {
         WriteLogF(L"InstallFileAtomic: move succeeded: %ls", targetPath.c_str());
         return true;
     }
@@ -1812,7 +1904,8 @@ static void CleanupPendingDeleteFiles(const std::wstring& rootDir)
 
         if (RetryFileOp(deleteOp, 3, 500)) {
             ++cleanedCount;
-        } else {
+        }
+        else {
             WriteLogF(L"Could not clean up pending-delete file: %ls", filePath.c_str());
         }
     } while (FindNextFileW(hFind, &fd));
@@ -1821,6 +1914,58 @@ static void CleanupPendingDeleteFiles(const std::wstring& rootDir)
 
     if (cleanedCount > 0) {
         WriteLogF(L"Cleaned up %d pending-delete file(s).", cleanedCount);
+    }
+}
+
+static bool WaitForExecutableProcessesToExit(const std::wstring& executablePath, DWORD timeoutMs)
+{
+    const std::wstring executableName = L"MAA.exe";
+    ULONGLONG deadline = GetTickCount64() + timeoutMs;
+    while (true) {
+        bool found = false;
+        HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if (snapshot != INVALID_HANDLE_VALUE) {
+            PROCESSENTRY32W entry {};
+            entry.dwSize = sizeof(entry);
+            if (Process32FirstW(snapshot, &entry)) {
+                do {
+                    if (entry.th32ProcessID == GetCurrentProcessId() ||
+                        _wcsicmp(entry.szExeFile, executableName.c_str()) != 0) {
+                        continue;
+                    }
+
+                    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, entry.th32ProcessID);
+                    if (process == nullptr) {
+                        found = true;
+                        WriteLogF(
+                            L"Executable process still present but cannot be queried: PID=%lu",
+                            entry.th32ProcessID);
+                        break;
+                    }
+
+                    wchar_t imagePath[32'768] {};
+                    DWORD imagePathLength = static_cast<DWORD>(std::size(imagePath));
+                    bool sameExecutable =
+                        QueryFullProcessImageNameW(process, 0, imagePath, &imagePathLength) != FALSE &&
+                        _wcsicmp(imagePath, executablePath.c_str()) == 0;
+                    CloseHandle(process);
+                    if (sameExecutable) {
+                        found = true;
+                        WriteLogF(L"Waiting for executable process to exit: PID=%lu", entry.th32ProcessID);
+                        break;
+                    }
+                } while (Process32NextW(snapshot, &entry));
+            }
+            CloseHandle(snapshot);
+        }
+
+        if (!found) {
+            return true;
+        }
+        if (GetTickCount64() >= deadline) {
+            return false;
+        }
+        Sleep(250);
     }
 }
 
@@ -1848,15 +1993,15 @@ int wmain(int argc, wchar_t* argv[])
         return 1;
     }
 
-    DWORD     parentPid              = static_cast<DWORD>(_wtoi(argv[1]));
-    std::wstring rootDir             = argv[2];
-    std::wstring extractDir          = argv[3];
-    std::wstring backupDir           = argv[4];
-    std::wstring packagePath         = argv[5];
-    std::wstring successStatusFile   = argv[6];
-    std::wstring failureStatusFile   = argv[7];
-    std::wstring relaunchExecutable  = argv[8];
-    std::wstring planFile            = argv[9];
+    DWORD parentPid = static_cast<DWORD>(_wtoi(argv[1]));
+    std::wstring rootDir = argv[2];
+    std::wstring extractDir = argv[3];
+    std::wstring backupDir = argv[4];
+    std::wstring packagePath = argv[5];
+    std::wstring successStatusFile = argv[6];
+    std::wstring failureStatusFile = argv[7];
+    std::wstring relaunchExecutable = argv[8];
+    std::wstring planFile = argv[9];
     g_writeConsoleLog = HasArgument(argc, argv, L"--show-console");
     g_suppressProgressUi = HasArgument(argc, argv, L"--no-progress-ui");
 
@@ -1905,7 +2050,8 @@ int wmain(int argc, wchar_t* argv[])
             int remainingSeconds = static_cast<int>(PARENT_EXIT_COUNTDOWN_MS / 1000);
             auto buildCountdownDetail = [&]() {
                 std::wstring secondsText = std::to_wstring(remainingSeconds);
-                return L"MAA 主程序未正常退出，" + secondsText + L" 秒后强制结束 | MAA exit timeout, forcing in " + secondsText + L"s";
+                return L"MAA 主程序未正常退出，" + secondsText + L" 秒后强制结束 | MAA exit timeout, forcing in " +
+                       secondsText + L"s";
             };
             SetProgressUiStatus(L"正在准备更新... | Preparing update...", buildCountdownDetail());
             DWORD elapsedMs = 0;
@@ -1936,14 +2082,19 @@ int wmain(int argc, wchar_t* argv[])
 
                 // 失败通常是父进程恰好自行退出；拿不到 PROCESS_TERMINATE 权限时同样只能继续等待，
                 // 重置倒计时，避免父进程未退出就带文件占用开始安装
-                WriteLog((L"TerminateProcess failed, error=" + std::to_wstring(GetLastError()) + L", restarting the countdown.").c_str());
+                WriteLog((L"TerminateProcess failed, error=" + std::to_wstring(GetLastError()) +
+                          L", restarting the countdown.")
+                             .c_str());
                 elapsedMs = 0;
             }
         }
         CloseHandle(hParent);
         WriteLog(L"Parent process exited.");
-    } else {
-        WriteLog((L"Could not open the parent process, it may have already exited, PID=" + std::to_wstring(parentPid) + L". Continuing.").c_str());
+    }
+    else {
+        WriteLog((L"Could not open the parent process, it may have already exited, PID=" + std::to_wstring(parentPid) +
+                  L". Continuing.")
+                     .c_str());
     }
 
     // 主程序已退出（或无法打开句柄时视为已退出）后再弹出进度窗口。
@@ -1969,24 +2120,35 @@ int wmain(int argc, wchar_t* argv[])
             SetProgressUiStatus(
                 L"无法继续更新 | Update blocked",
                 L"检测到另一个 MAA 实例正在运行 | Another MAA instance is running");
-        } else {
+        }
+        else {
             WriteLog(L"Update mutex acquired, preventing new MAA instances from starting.");
+            if (!WaitForExecutableProcessesToExit(relaunchExecutable, EXECUTABLE_EXIT_TIMEOUT_MS)) {
+                updateMutexBlocked = true;
+                failureReason =
+                    L"MAA 主程序仍在退出，暂时无法替换 MAA.exe。请稍后重试更新。\n\n"
+                    L"The MAA executable is still in use. Please retry the update shortly.";
+                WriteLog(failureReason.c_str());
+                SetProgressUiStatus(
+                    L"无法继续更新 | Update blocked",
+                    L"MAA 主程序仍占用文件 | MAA executable is still in use");
+            }
         }
 
         // Clean up any .pendingdelete files left from a previous interrupted update
         CleanupPendingDeleteFiles(rootDir);
-    } else {
+    }
+    else {
         WriteLog(L"No mutex name provided, update mutex will not be used.");
     }
 
     if (IsDriveRootDirectory(rootDir)) {
         failureReason =
             L"检测到 MAA 安装在盘符根目录，已阻止更新继续执行。请先将 MAA 移动到独立文件夹后再重试。\n\n"
-            L"Detected MAA installed directly in a drive root. Update execution was blocked. Please move MAA into a dedicated folder and try again.";
+            L"Detected MAA installed directly in a drive root. Update execution was blocked. Please move MAA into a "
+            L"dedicated folder and try again.";
         WriteLog(failureReason.c_str());
-        SetProgressUiStatus(
-            L"无法继续更新 | Update blocked",
-            L"检测到盘符根目录安装 | Drive-root install detected");
+        SetProgressUiStatus(L"无法继续更新 | Update blocked", L"检测到盘符根目录安装 | Drive-root install detected");
     }
 
     // ------------------------------------------------------------------
@@ -2014,7 +2176,10 @@ int wmain(int argc, wchar_t* argv[])
             L"正在分析更新内容... | Analyzing update contents...",
             L"更新计划读取完成 | Update plan loaded");
 
-        WriteLog((L"Plan loaded, package type: " + plan.packageType + L", remove entries: " + std::to_wstring(removeList.size()) + L", install entries: " + std::to_wstring(moveList.size()) + L", relaunch args: " + std::to_wstring(relaunchArgs.size())).c_str());
+        WriteLog((L"Plan loaded, package type: " + plan.packageType + L", remove entries: " +
+                  std::to_wstring(removeList.size()) + L", install entries: " + std::to_wstring(moveList.size()) +
+                  L", relaunch args: " + std::to_wstring(relaunchArgs.size()))
+                     .c_str());
         WriteLogEntries(L"Files to remove", removeList);
         WriteLogEntries(L"Files to install", moveList);
 
@@ -2029,17 +2194,15 @@ int wmain(int argc, wchar_t* argv[])
                 goto apply_failed;
             }
             if (!PathExistsW(targetPath)) {
-                AdvanceProgressUi(
-                    L"正在清理旧文件... | Cleaning old files...",
-                    rel);
+                AdvanceProgressUi(L"正在清理旧文件... | Cleaning old files...", rel);
                 continue;
             }
 
             if (!isFullPackage && IsDirectory(targetPath)) {
-                WriteLog((L"Skipping directory removal for a non-full package, entry: " + rel + L", target: " + targetPath).c_str());
-                AdvanceProgressUi(
-                    L"正在清理旧文件... | Cleaning old files...",
-                    rel);
+                WriteLog(
+                    (L"Skipping directory removal for a non-full package, entry: " + rel + L", target: " + targetPath)
+                        .c_str());
+                AdvanceProgressUi(L"正在清理旧文件... | Cleaning old files...", rel);
                 continue;
             }
 
@@ -2052,18 +2215,15 @@ int wmain(int argc, wchar_t* argv[])
 
             WriteLog((L"Removing and backing up: " + targetPath + L" -> " + backupPath).c_str());
             installationModified = true;
-            bool backupOk = isFullPackage
-                ? RecycleAndBackupPath(targetPath, backupPath)
-                : MoveExistingPathToBackup(targetPath, backupPath);
+            bool backupOk = isFullPackage ? RecycleAndBackupPath(targetPath, backupPath)
+                                          : MoveExistingPathToBackup(targetPath, backupPath);
             if (!backupOk) {
                 failureReason = L"Failed to move to backup: " + targetPath;
                 WriteLog(failureReason.c_str());
                 goto apply_failed;
             }
 
-            AdvanceProgressUi(
-                L"正在清理旧文件... | Cleaning old files...",
-                rel);
+            AdvanceProgressUi(L"正在清理旧文件... | Cleaning old files...", rel);
         }
 
         // ---- Move/install entries ----
@@ -2071,9 +2231,8 @@ int wmain(int argc, wchar_t* argv[])
             std::wstring sourcePath, targetPath, backupPath;
 
             if (!TryResolvePathUnderRoot(extractDir, rel, sourcePath) ||
-                !TryResolvePathUnderRoot(rootDir,    rel, targetPath) ||
-                !TryResolvePathUnderRoot(backupDir,  rel, backupPath))
-            {
+                !TryResolvePathUnderRoot(rootDir, rel, targetPath) ||
+                !TryResolvePathUnderRoot(backupDir, rel, backupPath)) {
                 failureReason = L"Illegal path in moveList: " + rel;
                 WriteLog(failureReason.c_str());
                 goto apply_failed;
@@ -2088,9 +2247,8 @@ int wmain(int argc, wchar_t* argv[])
 
                 WriteLog((L"Backing up existing entry: " + targetPath).c_str());
                 installationModified = true;
-                bool backupOk = IsRecycleAndReplaceDirectory(rel)
-                    ? RecycleAndBackupDirectory(targetPath, backupPath)
-                    : MoveExistingPathToBackup(targetPath, backupPath);
+                bool backupOk = IsRecycleAndReplaceDirectory(rel) ? RecycleAndBackupDirectory(targetPath, backupPath)
+                                                                  : MoveExistingPathToBackup(targetPath, backupPath);
                 if (!backupOk) {
                     failureReason = L"Failed to back up existing entry: " + targetPath;
                     WriteLog(failureReason.c_str());
@@ -2102,8 +2260,7 @@ int wmain(int argc, wchar_t* argv[])
 
             bool installOk = false;
             DWORD sourceAttr = GetFileAttributesW(sourcePath.c_str());
-            bool isSourceFile = (sourceAttr != INVALID_FILE_ATTRIBUTES) &&
-                                !(sourceAttr & FILE_ATTRIBUTE_DIRECTORY);
+            bool isSourceFile = (sourceAttr != INVALID_FILE_ATTRIBUTES) && !(sourceAttr & FILE_ATTRIBUTE_DIRECTORY);
 
             // 源存在（文件或目录）才会真正开始改动安装；源缺失（如被杀软隔离）的条目
             // 最多创建空父目录即失败，不置位以免误写失败标志，让完好的安装被 GUI 误判为资源损坏
@@ -2114,15 +2271,15 @@ int wmain(int argc, wchar_t* argv[])
             if (isSourceFile) {
                 // Use atomic file replacement for individual files
                 installOk = InstallFileAtomic(sourcePath, targetPath);
-            } else {
+            }
+            else {
                 // Directories: use the original move logic.
                 // Nested entries (e.g. Res\Video) may target a parent directory that is
                 // missing from the old install (files deleted by antivirus, etc.); create
                 // it before moving, otherwise MoveFileExW fails with ERROR_PATH_NOT_FOUND.
                 EnsureParentDirectory(targetPath);
                 auto moveOp = [&]() -> bool {
-                    return MoveFileExW(sourcePath.c_str(), targetPath.c_str(),
-                                       MOVEFILE_REPLACE_EXISTING) != FALSE;
+                    return MoveFileExW(sourcePath.c_str(), targetPath.c_str(), MOVEFILE_REPLACE_EXISTING) != FALSE;
                 };
                 installOk = RetryFileOp(moveOp, FILE_OP_MAX_RETRIES, FILE_OP_INITIAL_DELAY_MS);
             }
@@ -2133,9 +2290,7 @@ int wmain(int argc, wchar_t* argv[])
                 goto apply_failed;
             }
 
-            AdvanceProgressUi(
-                L"正在安装新文件... | Installing new files...",
-                rel);
+            AdvanceProgressUi(L"正在安装新文件... | Installing new files...", rel);
         }
 
         // ---- Cleanup package ----
@@ -2144,24 +2299,24 @@ int wmain(int argc, wchar_t* argv[])
             WriteLog((L"Deleted update package: " + packagePath).c_str());
         }
 
-        if (PathExistsW(failureStatusFile))
+        if (PathExistsW(failureStatusFile)) {
             DeleteFileW(failureStatusFile.c_str());
+        }
 
-        SetProgressUiStatus(
-            L"正在完成更新... | Finalizing update...",
-            L"正在写入更新结果 | Writing update result");
+        SetProgressUiStatus(L"正在完成更新... | Finalizing update...", L"正在写入更新结果 | Writing update result");
         if (WriteUtf8File(successStatusFile, "succeeded")) {
             WriteLog((L"Wrote success status file: " + successStatusFile).c_str());
             success = true;
             shouldRelaunch = true;
-        } else {
+        }
+        else {
             failureReason = L"Failed to write success status file: " + successStatusFile;
             WriteLog(failureReason.c_str());
         }
 
         break; // normal exit from do-while
 
-    apply_failed:
+apply_failed:
         success = false;
 
         // 回滚只回滚本次动过的内容；未动过文件（如路径非法在处理任何条目前失败）时
@@ -2206,18 +2361,21 @@ int wmain(int argc, wchar_t* argv[])
             if (TryConvertWideToUtf8(failureReason, utf8Reason)) {
                 WriteUtf8File(failureStatusFile, utf8Reason);
             }
-        } else if (!updateMutexBlocked && PathExistsW(packagePath)) {
+        }
+        else if (!updateMutexBlocked && PathExistsW(packagePath)) {
             // 不写失败标志时 GUI 不会清空待更新包，保留包会让下次启动拿同一个包反复委托、反复失败，
             // 因此直接删包；互斥锁被占用属临时性失败，保留包重试。
             // 用 ForceDeleteFile 应对杀软扫描等临时占用：删不掉时改名腾出原路径，同样能让 GUI 检测不到待更新包
             if (ForceDeleteFile(packagePath)) {
                 WriteLog((L"Deleted update package after pre-apply failure: " + packagePath).c_str());
-            } else {
+            }
+            else {
                 WriteLog((L"Failed to delete update package after pre-apply failure: " + packagePath).c_str());
             }
         }
-        if (PathExistsW(successStatusFile))
+        if (PathExistsW(successStatusFile)) {
             DeleteFileW(successStatusFile.c_str());
+        }
         WriteLog((L"Update failed: " + failureReason).c_str());
         ShowProgressUiFailure(failureReason);
     }
@@ -2230,8 +2388,9 @@ int wmain(int argc, wchar_t* argv[])
         ForceRemoveDirectoryRecursive(extractDir);
     }
 
-    if (PathExistsW(planFile))
+    if (PathExistsW(planFile)) {
         DeleteFileW(planFile.c_str());
+    }
 
     // ------------------------------------------------------------------
     // Release update mutex
@@ -2246,15 +2405,15 @@ int wmain(int argc, wchar_t* argv[])
     // Relaunch MAA
     // ------------------------------------------------------------------
     if (shouldRelaunch && PathExistsW(relaunchExecutable)) {
-        CompleteProgressUi(
-            L"更新完成 | Update completed",
-            L"正在重新启动 MAA... | Relaunching MAA...");
+        CompleteProgressUi(L"更新完成 | Update completed", L"正在重新启动 MAA... | Relaunching MAA...");
         WriteLog((L"Relaunching MAA: " + relaunchExecutable).c_str());
 
         // Find working directory (parent of the executable)
         std::wstring workDir = relaunchExecutable;
         size_t sep = workDir.rfind(L'\\');
-        if (sep != std::wstring::npos) workDir = workDir.substr(0, sep);
+        if (sep != std::wstring::npos) {
+            workDir = workDir.substr(0, sep);
+        }
 
         STARTUPINFOW si {};
         si.cb = sizeof(si);
@@ -2265,20 +2424,26 @@ int wmain(int argc, wchar_t* argv[])
         if (CreateProcessW(
                 relaunchExecutable.c_str(),
                 cmdLine.data(),
-                nullptr, nullptr, FALSE, 0, nullptr,
+                nullptr,
+                nullptr,
+                FALSE,
+                0,
+                nullptr,
                 workDir.c_str(),
-                &si, &pi))
-        {
+                &si,
+                &pi)) {
             CloseHandle(pi.hProcess);
             CloseHandle(pi.hThread);
             WriteLog(L"Relaunch succeeded.");
-        } else {
+        }
+        else {
             WriteLog((L"Relaunch failed, error=" + std::to_wstring(GetLastError())).c_str());
             ShowProgressUiFailure(
                 L"更新已完成，但重新启动 MAA 失败，请手动启动 MAA。\n"
                 L"Update finished, but failed to relaunch MAA. Please start MAA manually.");
         }
-    } else if (success) {
+    }
+    else if (success) {
         CompleteProgressUi(
             L"更新完成 | Update completed",
             L"更新已完成，请手动启动 MAA。 | Update completed. Please start MAA manually.");
