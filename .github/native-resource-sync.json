@@ -1,6 +1,6 @@
 {
   "merge_mode": "resource_patch_with_program_commits_excluded",
-  "upstream_commit": "cc26eff380e805c358a0d5b2db9b00b7bc8ce008",
+  "upstream_commit": "201cbb73e7505884f61027b06294ecf049c670c7",
   "previous_upstream_commit": "626a174b46f8eeea2b5fecc9e12706632f07d001",
   "updated_utc": "2026-11-01T17:58:49+00:00",
   "resource_version": {
@@ -12,7 +12,7 @@
       "pool": "将雪投火",
       "time": 1793487600
     },
-    "last_updated": "2026-11-08 15:51:20.000"
+    "last_updated": "2026-11-12 01:26:35.000"
   },
   "resource_files": [
     "resource/global/YoStarEN/resource/tasks/RA/Reclamation3.json",
