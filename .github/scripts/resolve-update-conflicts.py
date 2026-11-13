@@ -34,6 +34,7 @@ def native_guide(native, upstream):
 def resolve(relative, chooser):
     path = ROOT / relative
     text = path.read_text(encoding="utf-8-sig")
+    original = text
     text, count = re.subn(
         r"^<<<<<<<[^\n]*\n(.*?)^=======\n(.*?)^>>>>>>>[^\n]*(?:\n|$)",
         lambda match: chooser(match[1], match[2]),
@@ -41,7 +42,7 @@ def resolve(relative, chooser):
         flags=re.MULTILINE | re.DOTALL,
     )
     validate(path, text)
-    if count:
+    if text != original:
         path.write_text(text, encoding="utf-8")
 
 
@@ -50,6 +51,7 @@ def resolve_battle_helper():
     if not path.exists():
         return
     text = path.read_text(encoding="utf-8-sig")
+    original = text
     conflict_pattern = r"^<<<<<<<[^\n]*\n(.*?)^=======\n(.*?)^>>>>>>>[^\n]*(?:\n|$)"
     native_pattern = re.compile(
         r"^        cv::Vec3d temp \{ point\.x \+ \(has_multi_stages \? m_map_data\.view\[0\]\.x : 0\), -point\.y, Map::TileCalc2::rel_pos_z \};\n"
@@ -79,8 +81,13 @@ def resolve_battle_helper():
         text,
         flags=re.MULTILINE | re.DOTALL,
     )
+    text = re.sub(
+        r"\b(layout|calc_result)\.has_multi_stages\b",
+        r"\1.has_multi_phases",
+        text,
+    )
     validate(path, text)
-    if count:
+    if text != original:
         path.write_text(text, encoding="utf-8")
 
 

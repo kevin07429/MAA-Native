@@ -295,6 +295,7 @@ class AutoUpdateTests(unittest.TestCase):
         helper.parent.mkdir(parents=True)
         helper.write_text(
             "before\n"
+            "const double center = layout.has_multi_stages ? 0 : 1;\n"
             "<<<<<<< HEAD\n"
             "        cv::Vec3d temp { point.x + (has_multi_stages ? m_map_data.view[0].x : 0), -point.y, Map::TileCalc2::rel_pos_z };\n"
             "        auto screen_pt = Config.get_options().native_resolution\n"
@@ -312,6 +313,7 @@ class AutoUpdateTests(unittest.TestCase):
         result = helper.read_text(encoding="utf-8")
         self.assertIn("has_multi_phases", result)
         self.assertIn("adaptive::project_battle", result)
+        self.assertIn("layout.has_multi_phases", result)
         self.assertNotIn("has_multi_stages", result)
         self.assertNotIn("<<<<<<<", result)
 
