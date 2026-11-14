@@ -17,7 +17,7 @@ if(WITH_MAC_SCK)
 endif()
 
 add_library(MaaCore SHARED ${maa_src})
-set(NATIVE_APP_VERSION "v6.22.0-native.26" CACHE STRING "Native fork release version")
+set(NATIVE_APP_VERSION "v6.22.0-native.27" CACHE STRING "Native fork release version")
 set_property(SOURCE AsstCaller.cpp APPEND PROPERTY COMPILE_DEFINITIONS "NATIVE_APP_VERSION=\"${NATIVE_APP_VERSION}\"")
 
 if(WITH_EMULATOR_EXTRAS)
