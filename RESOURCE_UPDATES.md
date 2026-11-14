@@ -1,11 +1,10 @@
-# MAA Native v6.22.0-native.27
+# MAA Native v6.22.0-native.28
 
-自动同步官方 dev-v2 `9db0f0cf6e11484ee0ac551643fca9500b4d1254`，保留手机适配、快速截图、后台控制与暂停/恢复。
+自动同步官方 dev-v2 `f6a036b071209a70d9f3d628e2c5868390c31381`，保留手机适配、快速截图、后台控制与暂停/恢复。
 
 ## 本次官方提交
 
-9db0f0cf6e fix: 黑流树海开局分队确认后增加延迟以提高稳定性 (#19257)
-e2f5bc11ac fix: 修复更换主题时银凇被误识别为银松 (#19255)
+f6a036b071 ci: bump softprops/action-gh-release from 3.0.3 to 3.0.4 in /.github/workflows in the github-actions group (#19259)
 
 完整包用于新安装；程序更新包由内置更新器使用，保留配置、数据、资源和壁纸。资源继续同步官方 MaaResource。
 
