@@ -1,6 +1,6 @@
 {
   "merge_mode": "resource_patch_with_program_commits_excluded",
-  "upstream_commit": "ddac9713daa34884e4af286b61057cfcabc733a2",
+  "upstream_commit": "b666b84a317c603c561401ab5e5c7b12203d8271",
   "previous_upstream_commit": "626a174b46f8eeea2b5fecc9e12706632f07d001",
   "updated_utc": "2026-11-01T17:58:49+00:00",
   "resource_version": {

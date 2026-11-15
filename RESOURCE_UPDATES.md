@@ -1,10 +1,10 @@
-# MAA Native v6.22.0-native.29
+# MAA Native v6.22.0-native.30
 
-自动同步官方 dev-v2 `ddac9713daa34884e4af286b61057cfcabc733a2`，保留手机适配、快速截图、后台控制与暂停/恢复。
+自动同步官方 dev-v2 `b666b84a317c603c561401ab5e5c7b12203d8271`，保留手机适配、快速截图、后台控制与暂停/恢复。
 
 ## 本次官方提交
 
-ddac9713da chore: Auto update by pre-commit hooks https://github.com/MaaAssistantArknights/MaaAssistantArknights/actions/runs/43640684380 [skip changelog]
+b666b84a31 fix: 黑流树海刷等级投资未生效 (#19266)
 
 完整包用于新安装；程序更新包由内置更新器使用，保留配置、数据、资源和壁纸。资源继续同步官方 MaaResource。
 
