@@ -41,8 +41,47 @@ internal static class NativeCaptureService
     private static bool _ownsForward;
     private static bool _ready;
 
+    private static void RestoreStrongholdRegulations(string resourceDirectory)
+    {
+        const string prefix = "NativeCapture.StrongholdRegulation.";
+        var assembly = typeof(NativeCaptureService).Assembly;
+        string directory = Path.Combine(resourceDirectory, "stronghold_protocol", "regulation");
+        foreach (string name in assembly.GetManifestResourceNames().Where(name => name.StartsWith(prefix, StringComparison.Ordinal)))
+        {
+            string path = Path.Combine(directory, name[prefix.Length..]);
+            if (File.Exists(path))
+            {
+                continue;
+            }
+
+            Directory.CreateDirectory(directory);
+            string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                using (var source = assembly.GetManifestResourceStream(name)!)
+                using (var target = File.Create(temporary))
+                {
+                    source.CopyTo(target);
+                }
+
+                File.Move(temporary, path);
+                _logger.Information("Restored missing Stronghold Protocol regulation {Resource}", path);
+            }
+            catch (IOException) when (File.Exists(path))
+            {
+                // Another instance restored the resource first.
+            }
+            finally
+            {
+                File.Delete(temporary);
+            }
+        }
+    }
+
     internal static void PrepareResources(string resourceDirectory)
     {
+        RestoreStrongholdRegulations(resourceDirectory);
+
         string strategyPath = Path.Combine(resourceDirectory, "roguelike", "BlackFlow", "strategy.json");
         if (File.Exists(strategyPath))
         {
