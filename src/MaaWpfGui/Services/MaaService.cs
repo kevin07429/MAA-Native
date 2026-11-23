@@ -193,6 +193,11 @@ public enum AsstTaskType : byte
     Reclamation,
 
     /// <summary>
+    /// 卫戍协议
+    /// </summary>
+    StrongholdProtocol,
+
+    /// <summary>
     /// 更换主题
     /// </summary>
     SwitchTheme,
