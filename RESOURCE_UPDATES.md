@@ -1,11 +1,10 @@
-# MAA Native v6.23.1-native.49
+# MAA Native v6.23.1-native.50
 
-自动同步官方 dev-v2 `b4e3713cce62884f22947b94b1a5adbcc2cc7a45`，保留手机适配、快速截图、后台控制与暂停/恢复。
+自动同步官方 dev-v2 `1fda013f9054b7ba4503358e09f23d82acef4949`，保留手机适配、快速截图、后台控制与暂停/恢复。
 
 ## 本次官方提交
 
-b4e3713cce chore: Auto update by pre-commit hooks https://github.com/MaaAssistantArknights/MaaAssistantArknights/actions/runs/45487091828 [skip changelog]
-d3af2291e8 fix: 区分黑流树海应急助力的离开与确认离开 (#19418)
+1fda013f90 docs: 更新 v6.23.2 与 v6.23.1 更新日志
 
 完整包用于新安装；程序更新包由内置更新器使用，保留配置、数据、资源和壁纸。资源继续同步官方 MaaResource。
 
