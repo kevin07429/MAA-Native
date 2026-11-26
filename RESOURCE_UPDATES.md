@@ -1,13 +1,10 @@
-# MAA Native v6.23.1-native.51
+# MAA Native v6.23.2-native.52
 
-自动同步官方 dev-v2 `7980fa9260dd472e4c66098ba2366919986f1e25`，保留手机适配、快速截图、后台控制与暂停/恢复。
+自动同步官方 dev-v2 `13601068365fae3398e6ddc1edcd54b5333b1a65`，保留手机适配、快速截图、后台控制与暂停/恢复。
 
 ## 本次官方提交
 
-7980fa9260 Release v6.23.2 (#19417)
-dbb712f112 docs: 调整 RA4 任务说明格式
-0cf472d33d fix: 修复 OS/CW 的 S 关卡识别 (#19425)
-abe927d958 chore: PC 端 issue 模板更名避免排序靠下
+1360106836 chore: Auto update by pre-commit hooks https://github.com/MaaAssistantArknights/MaaAssistantArknights/actions/runs/45700781988 [skip changelog]
 
 完整包用于新安装；程序更新包由内置更新器使用，保留配置、数据、资源和壁纸。资源继续同步官方 MaaResource。
 
